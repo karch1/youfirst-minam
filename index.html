@@ -34,7 +34,7 @@
         body {
             font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
             background-color: #f8fafc;
-            font-size: 20px; /* Base size scaled up for readability */
+            font-size: 24px; /* Base size scaled up for readability */
         }
         /* Custom scrollbar to keep it sleek */
         ::-webkit-scrollbar {
@@ -704,32 +704,32 @@
                 else if (item.status === '단순문의') badgeColor = "bg-slate-200 text-slate-800 border-slate-300";
 
                 tr.innerHTML = `
-                    <td class="p-4 text-sm text-slate-500 whitespace-nowrap font-medium">${item.date}</td>
-                    <td class="p-4 text-sm font-black text-slate-700 whitespace-nowrap">${item.agent}</td>
-                    <td class="p-4 text-base font-black text-slate-900 whitespace-nowrap">${item.name} <span class="text-xs text-slate-500 font-bold ml-1">${item.gender || ''}</span></td>
-                    <td class="p-4 text-sm text-slate-600 whitespace-nowrap font-mono font-bold">${item.birth}</td>
-                    <td class="p-4 text-sm text-slate-700 whitespace-nowrap font-mono font-bold">${item.phone}</td>
-                    <td class="p-4 text-sm text-slate-500 max-w-[200px] truncate font-medium" title="${item.address}">${item.address}</td>
-                    <td class="p-4 text-sm text-slate-500 whitespace-nowrap font-medium">${item.job || '-'}</td>
-                    <td class="p-4 text-sm text-slate-700 max-w-[450px] truncate cursor-pointer font-bold hover:text-indigo-600 transition-colors" onclick="openEditModal(${index})" title="클릭하여 수정하기">
-                        <i class="fa-regular fa-comment-dots text-slate-400 mr-1.5 text-xs"></i> ${item.memo || '<span class="text-slate-300 italic font-normal">상담 기록 없음</span>'}
-                    </td>
-                    <td class="p-4 text-sm whitespace-nowrap">
-                        <button onclick="openEditModal(${index})" class="px-3.5 py-1.5 rounded-full text-xs font-black border ${badgeColor} transition-all hover:scale-105 shadow-sm">
-                            ${item.status}
-                        </button>
-                    </td>
-                    <td class="p-4 text-sm text-center whitespace-nowrap">
-                        <div class="flex items-center justify-center gap-3">
-                            <button onclick="openEditModal(${index})" class="text-slate-400 hover:text-indigo-600 transition-colors p-1" title="상세 정보 수정">
-                                <i class="fa-regular fa-pen-to-square text-lg"></i>
-                            </button>
-                            <button onclick="deleteRow(${index})" class="text-slate-400 hover:text-rose-600 transition-colors p-1" title="정보 삭제">
-                                <i class="fa-regular fa-trash-can text-lg"></i>
-                            </button>
-                        </div>
-                    </td>
-                `;
+    <td class="p-4 text-[24px] text-slate-500 whitespace-nowrap font-medium">${item.date}</td>
+    <td class="p-4 text-[24px] font-black text-slate-700 whitespace-nowrap">${item.agent}</td>
+    <td class="p-4 text-[24px] font-black text-slate-900 whitespace-nowrap">${item.name} <span class="text-[16px] text-slate-500 font-bold ml-1">${item.gender || ''}</span></td>
+    <td class="p-4 text-[24px] text-slate-600 whitespace-nowrap font-mono font-bold">${item.birth}</td>
+    <td class="p-4 text-[24px] text-slate-700 whitespace-nowrap font-mono font-bold">${item.phone}</td>
+    <td class="p-4 text-[24px] text-slate-500 max-w-[200px] truncate font-medium" title="${item.address}">${item.address}</td>
+    <td class="p-4 text-[24px] text-slate-500 whitespace-nowrap font-medium">${item.job || '-'}</td>
+    <td class="p-4 text-[24px] text-slate-700 max-w-[450px] truncate cursor-pointer font-bold hover:text-indigo-600 transition-colors" onclick="openEditModal(${index})" title="클릭하여 수정하기">
+        <i class="fa-regular fa-comment-dots text-slate-400 mr-1.5 text-[20px]"></i> ${item.memo || '<span class="text-slate-300 italic font-normal">상담 기록 없음</span>'}
+    </td>
+    <td class="p-4 whitespace-nowrap">
+        <button onclick="openEditModal(${index})" class="px-4 py-2 rounded-full text-[20px] font-black border ${badgeColor} transition-all hover:scale-105 shadow-sm">
+            ${item.status}
+        </button>
+    </td>
+    <td class="p-4 text-center whitespace-nowrap">
+        <div class="flex items-center justify-center gap-3">
+            <button onclick="openEditModal(${index})" class="text-slate-400 hover:text-indigo-600 transition-colors p-1" title="상세 정보 수정">
+                <i class="fa-regular fa-pen-to-square text-[24px]"></i>
+            </button>
+            <button onclick="deleteRow(${index})" class="text-slate-400 hover:text-rose-600 transition-colors p-1" title="정보 삭제">
+                <i class="fa-regular fa-trash-can text-[24px]"></i>
+            </button>
+        </div>
+    </td>
+`;
                 tbody.appendChild(tr);
             });
 
