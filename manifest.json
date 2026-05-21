@@ -1,7 +1,7 @@
 {
   "name": "유퍼스트 미남지사",
   "short_name": "미남지사",
-  "start_url": "/youfirst-minam/"
+  "start_url": "/youfirst-minam/",
   "display": "standalone",
   "background_color": "#102a43",
   "theme_color": "#102a43",
