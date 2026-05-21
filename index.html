@@ -616,7 +616,14 @@
 
         // Initialize Database Connect
         async function initDatabase() {
-            const fbConfig = getSavedFirebaseConfig() || (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+            const fbConfig = {
+                  apiKey: "AIzaSyBbcu2dYOz_MdqXjeabF88VLLCv7V9KXNM",
+                  authDomain: "youfirst-minam.firebaseapp.com",
+                  projectId: "youfirst-minam",
+                  storageBucket: "youfirst-minam.firebasestorage.app",
+                  messagingSenderId: "1081813328361",
+                  appId: "1:1081813328361:web:67fb69bc5aaba91aebab78"
+                };
 
             if (fbConfig && fbConfig.apiKey && fbConfig.projectId) {
                 try {
@@ -1067,56 +1074,6 @@
                 localStorage.setItem('hide_notice_expiry_v2', expiryTime);
             }
             document.getElementById('noticeModal').classList.add('hidden');
-        }
-
-        // Config Modals
-        window.openConfigModal = function() {
-            const fbConfig = getSavedFirebaseConfig();
-            if (fbConfig) {
-                document.getElementById('fbApiKey').value = fbConfig.apiKey || '';
-                document.getElementById('fbAuthDomain').value = fbConfig.authDomain || '';
-                document.getElementById('fbProjectId').value = fbConfig.projectId || '';
-                document.getElementById('fbStorageBucket').value = fbConfig.storageBucket || '';
-                document.getElementById('fbMessagingSenderId').value = fbConfig.messagingSenderId || '';
-                document.getElementById('fbAppId').value = fbConfig.appId || '';
-            }
-            document.getElementById('configModal').classList.remove('hidden');
-        }
-
-        window.closeConfigModal = function() {
-            document.getElementById('configModal').classList.add('hidden');
-        }
-
-        window.saveFirebaseConfig = function() {
-            const config = {
-                apiKey: document.getElementById('fbApiKey').value.trim(),
-                authDomain: document.getElementById('fbAuthDomain').value.trim(),
-                projectId: document.getElementById('fbProjectId').value.trim(),
-                storageBucket: document.getElementById('fbStorageBucket').value.trim(),
-                messagingSenderId: document.getElementById('fbMessagingSenderId').value.trim(),
-                appId: document.getElementById('fbAppId').value.trim()
-            };
-
-            if (!config.apiKey || !config.projectId) {
-                showToast("API Key와 Project ID는 필수 입력 사항입니다.", "error");
-                return;
-            }
-
-            localStorage.setItem('fb_config_new', JSON.stringify(config));
-            showToast("설정 파일이 저장되었습니다. 시스템을 다시 로드합니다.", "success");
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        }
-
-        window.clearFirebaseConfig = function() {
-            window.openConfirmModal("클라우드 연동을 해제하고 로컬 단독 보관 모드로 전환하시겠습니까?", () => {
-                localStorage.removeItem('fb_config_new');
-                showToast("연동이 해제되었습니다.", "success");
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-            });
         }
 
         function setDefaultRegDate() {
