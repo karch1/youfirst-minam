@@ -704,14 +704,14 @@
                 else if (item.status === '단순문의') badgeColor = "bg-slate-200 text-slate-800 border-slate-300";
 
                 tr.innerHTML = `
-    <td class="p-4 text-[24px] text-slate-500 whitespace-nowrap font-medium">${item.date}</td>
-    <td class="p-4 text-[24px] font-black text-slate-700 whitespace-nowrap">${item.agent}</td>
-    <td class="p-4 text-[24px] font-black text-slate-900 whitespace-nowrap">${item.name} <span class="text-[16px] text-slate-500 font-bold ml-1">${item.gender || ''}</span></td>
-    <td class="p-4 text-[24px] text-slate-600 whitespace-nowrap font-mono font-bold">${item.birth}</td>
-    <td class="p-4 text-[24px] text-slate-700 whitespace-nowrap font-mono font-bold">${item.phone}</td>
-    <td class="p-4 text-[24px] text-slate-500 max-w-[200px] truncate font-medium" title="${item.address}">${item.address}</td>
-    <td class="p-4 text-[24px] text-slate-500 whitespace-nowrap font-medium">${item.job || '-'}</td>
-    <td class="p-4 text-[24px] text-slate-700 max-w-[450px] truncate cursor-pointer font-bold hover:text-indigo-600 transition-colors" onclick="openEditModal(${index})" title="클릭하여 수정하기">
+    <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.date}</td>
+    <td class="p-4 text-[22px] font-black text-slate-700 whitespace-nowrap">${item.agent}</td>
+    <td class="p-4 text-[22px] font-black text-slate-900 whitespace-nowrap">${item.name} <span class="text-[16px] text-slate-500 font-bold ml-1">${item.gender || ''}</span></td>
+    <td class="p-4 text-[22px] text-slate-600 whitespace-nowrap font-mono font-bold">${item.birth}</td>
+    <td class="p-4 text-[22px] text-slate-700 whitespace-nowrap font-mono font-bold">${item.phone}</td>
+    <td class="p-4 text-[22px] text-slate-500 max-w-[200px] truncate font-medium" title="${item.address}">${item.address}</td>
+    <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.job || '-'}</td>
+    <td class="p-4 text-[22px] text-slate-700 max-w-[450px] truncate cursor-pointer font-bold hover:text-indigo-600 transition-colors" onclick="openEditModal(${index})" title="클릭하여 수정하기">
         <i class="fa-regular fa-comment-dots text-slate-400 mr-1.5 text-[20px]"></i> ${item.memo || '<span class="text-slate-300 italic font-normal">상담 기록 없음</span>'}
     </td>
     <td class="p-4 whitespace-nowrap">
