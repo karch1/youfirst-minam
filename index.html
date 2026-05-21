@@ -90,12 +90,7 @@
         </div>
         
         <div class="flex items-center gap-3">
-            <!-- System Config Button -->
-            <button onclick="openConfigModal()" class="bg-brand-600 hover:bg-brand-500 border border-brand-500 text-sm font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200">
-                <i class="fa-solid fa-gear text-base"></i>
-                <span>Firebase 연동 설정</span>
-            </button>
-            
+           
             <!-- Quick Notice View Button -->
             <button onclick="openNotice(true)" class="bg-indigo-600 hover:bg-indigo-500 text-sm font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 shadow-sm">
                 <i class="fa-solid fa-bullhorn text-amber-300 text-base"></i>
@@ -439,36 +434,6 @@
                     구글 파이어베이스 콘솔에서 발급한 SDK 구성 객체(Config) 값을 붙여넣으면 클라우드 DB 연동 모드로 전환됩니다. 미설정 시 브라우저 내의 LocalStorage로 안전하게 보관됩니다.
                 </p>
 
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">API KEY</label>
-                        <input type="text" id="fbApiKey" placeholder="AIzaSy..." class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">AUTH DOMAIN</label>
-                        <input type="text" id="fbAuthDomain" placeholder="your-project.firebaseapp.com" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">PROJECT ID</label>
-                            <input type="text" id="fbProjectId" placeholder="your-project" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">STORAGE BUCKET</label>
-                            <input type="text" id="fbStorageBucket" placeholder="your-project.appspot.com" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">MESSAGING SENDER ID</label>
-                            <input type="text" id="fbMessagingSenderId" placeholder="1234567890" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">APP ID</label>
-                            <input type="text" id="fbAppId" placeholder="1:123456:web:abcd" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <div class="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-between items-center gap-2">
