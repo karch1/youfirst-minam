@@ -643,14 +643,16 @@
             enableLocalFallback();
         });
 
-    } catch (err) {
-        console.error("Firebase 초기화 또는 로그인 실패, 로컬 스토리지 모드로 전환합니다:", err);
-        isFirebaseMode = false;
-        enableLocalFallback();
+            } catch (err) {
+                console.error("Firebase 초기화 또는 로그인 실패, 로컬 스토리지 모드로 전환합니다:", err);
+                isFirebaseMode = false;
+                enableLocalFallback();
+                }
+        } else {
+                enableLocalFallback();
+            }
     }
-} else {
-    enableLocalFallback();
-}
+       
     // 로컬 스토리지 데이터 로드
     function enableLocalFallback() {
         isFirebaseMode = false;
