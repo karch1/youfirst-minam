@@ -520,8 +520,10 @@
     <!-- CORE LOGIC & FIREBASE SDK (V10) INTEGRATION -->
    <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    // 랜선/서버가 오프라인시 고객데이터 입력 시 서버에 저장 -> 랜선/서버 회복시 -> db자동 동기화
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } 
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     // 애플리케이션 상태 관리 변수
     let customerData = [];
@@ -564,7 +566,7 @@
         }
     }
 
-    // 데이터베이스 연결 및 초기화
+    // 데이터베이스 연결 및 초기화 (리다이렉트 로그인 방식 적용)
     async function initDatabase() {
         const firebaseConfig = {
           apiKey: "AIzaSyBEuvbR1_Kgvbaf9ep71wDisRyld0iJMpU",
@@ -575,65 +577,80 @@
           appId: "1:728416151139:web:e271761416e8d69920ba56"
         };
 
-        if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
-            try {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                
-                let user = null;
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
-                        user = userCredential.user;
-                    } else {
-                        const provider = new GoogleAuthProvider();
-                        provider.setCustomParameters({ prompt: 'select_account' }); 
-                        const userCredential = await signInWithPopup(auth, provider);
-                        user = userCredential.user;
-                    }
-
-                    if (!user || user.email !== 'yfminam@gmail.com') {
-                        showToast("권한이 없는 계정입니다. 관리자 계정으로 로그인해주세요.", "error");
-                        await auth.signOut(); 
-                        enableLocalFallback();
-                        return;
-                    }
-
-                } catch (loginError) {
-                    console.error("인증 실패 또는 팝업 차단:", loginError);
-                    showToast("로그인에 실패하여 로컬 모드로 전환합니다.", "error");
-                    enableLocalFallback();
-                    return;
-                }
-
-                isFirebaseMode = true;
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
-                const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
-
-                unsubscribe = onSnapshot(collectionRef, (snapshot) => {
-                    customerData = [];
-                    snapshot.forEach((docSnap) => {
-                        customerData.push({ id: docSnap.id, ...docSnap.data() });
-                    });
-                    
-                    sortDataByDefault();
-                    updateAgentFilterDropdown();
-                    renderTable();
-                }, (error) => {
-                    console.error("Firestore 로딩 에러, 로컬 스토리지 모드로 전환합니다:", error);
-                    enableLocalFallback();
-                });
-
-            } catch (err) {
-                console.error("Firebase 초기화 실패, 로컬 스토리지 모드로 전환합니다:", err);
-                enableLocalFallback();
-            }
+       if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
+    try {
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        
+        let user = null;
+        
+        // 1. 구글 로그인 후 돌아온 리다이렉트 결과가 있는지 확인
+        const redirectResult = await getRedirectResult(auth);
+        if (redirectResult && redirectResult.user) {
+            user = redirectResult.user;
         } else {
-            enableLocalFallback();
+            user = auth.currentUser;
         }
-    }
 
+        // 2. 현재 로그인된 유저가 없다면 구글 로그인창으로 리다이렉트
+        if (!user) {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                user = userCredential.user;
+            } else {
+                const provider = new GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' }); 
+                
+                // 팝업 에러를 우회하기 위해 화면을 직접 전환합니다.
+                await signInWithRedirect(auth, provider);
+                return; // 리다이렉트 이동이 일어나므로 여기서 함수를 일시 종료합니다.
+            }
+        }
+
+        // 💡 3. 로그인 성공이 완전히 확정된 후 오프라인 지속성 DB를 초기화합니다!
+        db = initializeFirestore(app, {
+            localCache: persistentLocalCache({
+                tabManager: persistentMultipleTabManager()
+            })
+        });
+
+        console.log("Firebase 오프라인 지속성 모드로 로그인 및 DB 초기화 완료!");
+
+        // 4. 지정된 관리자 계정 권한 체크 (try 블록 내부로 이동)
+        if (!user || user.email !== 'yfminam@gmail.com') {
+            showToast("권한이 없는 계정입니다. 관리자 계정으로 로그인해주세요.", "error");
+            await auth.signOut(); 
+            enableLocalFallback();
+            return;
+        }
+
+        isFirebaseMode = true;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+        const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
+
+        // Realtime 리스너 연결 (오프라인 상태에서도 캐시 데이터를 땡겨와 화면을 먼저 그려줍니다)
+        unsubscribe = onSnapshot(collectionRef, (snapshot) => {
+            customerData = [];
+            snapshot.forEach((docSnap) => {
+                customerData.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            
+            sortDataByDefault();
+            updateAgentFilterDropdown();
+            renderTable();
+        }, (error) => {
+            console.error("Firestore 로딩 에러, 로컬 스토리지 모드로 전환합니다:", error);
+            enableLocalFallback();
+        });
+
+    } catch (err) {
+        console.error("Firebase 초기화 또는 로그인 실패, 로컬 스토리지 모드로 전환합니다:", err);
+        isFirebaseMode = false;
+        enableLocalFallback();
+    }
+} else {
+    enableLocalFallback();
+}
     // 로컬 스토리지 데이터 로드
     function enableLocalFallback() {
         isFirebaseMode = false;
