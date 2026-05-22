@@ -565,7 +565,7 @@
         }
     }
 
-    // 데이터베이스 연결 및 초기화 (무한 리다이렉트 늪 완벽 해결 최종본)
+   // 데이터베이스 연결 및 초기화 (다른 PC 무한 리다이렉트 완벽 해결 팝업 모드)
     async function initDatabase() {
         const firebaseConfig = {
           apiKey: "AIzaSyBEuvbR1_Kgvbaf9ep71wDisRyld0iJMpU",
@@ -585,21 +585,22 @@
             const app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             
-            let user = null;
+            // 1. 이미 로그인되어 있는 세션이 있는지 먼저 확인
+            let user = auth.currentUser;
 
-            // 1. 구글 리다이렉션 직후 돌아온 PC인 경우 인증 결과 정산 및 쿠키 굽기 대기
-            const redirectResult = await getRedirectResult(auth);
-            if (redirectResult && redirectResult.user) {
-                user = redirectResult.user;
+            // 2. 만약 세션이 없다면 잠시 대기하며 인증 상태 변화를 관찰
+            if (!user) {
+                user = await new Promise((resolve) => {
+                    const unsubscribeAuth = auth.onAuthStateChanged((u) => {
+                        unsubscribeAuth(); // 일회성으로 확인 후 해제
+                        resolve(u);
+                    });
+                });
             }
 
-            // 2. 리다이렉트 결과가 없다면 브라우저에 이미 저장된 인증 정보 확인
+            // 3. 다른 PC/시크릿 창이라서 아예 처음 들어온 상태라면 팝업 로그인 구동
             if (!user) {
-                user = auth.currentUser;
-            }
-
-            // 3. 만약 위 두 가지 모두 유저가 없다면 (새로운 PC 혹은 세션 만료) 딱 한번만 인증 유도
-            if (!user) {
+                // 커스텀 토큰이 제공된 특수 환경인지 먼저 체크
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     try {
                         const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
@@ -609,25 +610,34 @@
                     }
                 }
                 
-                // 둘 다 없으면 진짜 최초 로그인이 필요한 상태이므로 리다이렉트
+                // 진짜 로그인이 필요한 상태면 팝업 창을 띄웁니다 (무한 새로고침 차단)
                 if (!user) {
+                    const { signInWithPopup } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
                     const provider = new GoogleAuthProvider();
                     provider.setCustomParameters({ prompt: 'select_account' }); 
-                    showToast("구글 인증 화면으로 이동합니다...", "info");
-                    await signInWithRedirect(auth, provider);
-                    return; 
+                    
+                    showToast("관리자 인증이 필요합니다. 구글 로그인을 진행해 주세요.", "info");
+                    try {
+                        const result = await signInWithPopup(auth, provider);
+                        user = result.user;
+                    } catch (popupErr) {
+                        console.error("팝업 로그인 취소 또는 실패:", popupErr);
+                        showToast("로그인이 취소되었습니다. 로컬 모드로 진입합니다.", "error");
+                        enableLocalFallback();
+                        return;
+                    }
                 }
             }
 
-            // 4. 로그인한 유저가 존재하지만 관리자 지정 계정이 아닐 때 차단
-            if (user.email !== 'yfminam@gmail.com') {
+            // 4. 로그인한 유저 이메일 권한 검증 (yfminam@gmail.com 계정만 허용)
+            if (user && user.email !== 'yfminam@gmail.com') {
                 showToast("권한이 없는 계정입니다. 관리자 계정으로 로그인해주세요.", "error");
                 await auth.signOut();
                 enableLocalFallback();
                 return; 
             }
 
-            // 5. 완벽하게 검증된 관리자 계정인 경우에만 오프라인 캐시 캐싱 레이어 로드 및 Firestore 빌드
+            // 5. 관리자 인증 완료 시 Firestore 및 오프라인 캐시 레이어 로드
             db = initializeFirestore(app, {
                 localCache: persistentLocalCache({
                     tabManager: persistentMultipleTabManager()
@@ -658,11 +668,10 @@
             });
 
         } catch (err) {
-            console.error("Firebase 초기화 또는 로그인 실패, 로컬 스토리지 모드로 전환합니다:", err);
+            console.error("Firebase 초기화 실패, 로컬 스토리지 모드로 전환합니다:", err);
             enableLocalFallback();
         }
     }
-
     // 로컬 스토리지 데이터 로드
     function enableLocalFallback() {
         isFirebaseMode = false;
