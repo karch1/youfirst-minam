@@ -507,7 +507,7 @@
     <div id="toastContainer" class="fixed bottom-5 right-5 z-[70] flex flex-col gap-2.5 max-w-sm"></div>
 
     <!-- PWA Setup -->
-    <script>
+  <script>
        if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
             navigator.serviceWorker.register('/youfirst-minam/sw.js')
@@ -565,7 +565,7 @@
         }
     }
 
-    // 데이터베이스 연결 및 초기화
+    // 데이터베이스 연결 및 초기화 (무한 리다이렉트 늪 완벽 해결 최종본)
     async function initDatabase() {
         const firebaseConfig = {
           apiKey: "AIzaSyBEuvbR1_Kgvbaf9ep71wDisRyld0iJMpU",
@@ -586,21 +586,31 @@
             auth = getAuth(app);
             
             let user = null;
-            
-            // 1. 구글 로그인 후 돌아온 리다이렉트 결과 확인
+
+            // 1. 구글 리다이렉션 직후 돌아온 PC인 경우 인증 결과 정산 및 쿠키 굽기 대기
             const redirectResult = await getRedirectResult(auth);
             if (redirectResult && redirectResult.user) {
                 user = redirectResult.user;
-            } else {
+            }
+
+            // 2. 리다이렉트 결과가 없다면 브라우저에 이미 저장된 인증 정보 확인
+            if (!user) {
                 user = auth.currentUser;
             }
 
-            // 2. 로그인된 유저가 없다면 리다이렉트 유도
+            // 3. 만약 위 두 가지 모두 유저가 없다면 (새로운 PC 혹은 세션 만료) 딱 한번만 인증 유도
             if (!user) {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
-                    user = userCredential.user;
-                } else {
+                    try {
+                        const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                        user = userCredential.user;
+                    } catch(e) {
+                        console.error("커스텀 토큰 로그인 실패:", e);
+                    }
+                }
+                
+                // 둘 다 없으면 진짜 최초 로그인이 필요한 상태이므로 리다이렉트
+                if (!user) {
                     const provider = new GoogleAuthProvider();
                     provider.setCustomParameters({ prompt: 'select_account' }); 
                     showToast("구글 인증 화면으로 이동합니다...", "info");
@@ -609,15 +619,15 @@
                 }
             }
 
-            // 관리자 권한 체크
-            if (!user || user.email !== 'yfminam@gmail.com') {
+            // 4. 로그인한 유저가 존재하지만 관리자 지정 계정이 아닐 때 차단
+            if (user.email !== 'yfminam@gmail.com') {
                 showToast("권한이 없는 계정입니다. 관리자 계정으로 로그인해주세요.", "error");
-                await auth.signOut(); 
+                await auth.signOut();
                 enableLocalFallback();
                 return; 
             }
 
-            // 관리자 계정이 맞을 때만 DB 초기화
+            // 5. 완벽하게 검증된 관리자 계정인 경우에만 오프라인 캐시 캐싱 레이어 로드 및 Firestore 빌드
             db = initializeFirestore(app, {
                 localCache: persistentLocalCache({
                     tabManager: persistentMultipleTabManager()
@@ -625,12 +635,14 @@
             });
 
             console.log("Firebase 오프라인 지속성 모드로 로그인 및 DB 초기화 완료!");
-
             isFirebaseMode = true;
+            
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
             const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
 
-            // 리스너 연결
+            if (unsubscribe) unsubscribe();
+
+            // 실시간 대장 리스너 바인딩
             unsubscribe = onSnapshot(collectionRef, (snapshot) => {
                 customerData = [];
                 snapshot.forEach((docSnap) => {
@@ -649,7 +661,7 @@
             console.error("Firebase 초기화 또는 로그인 실패, 로컬 스토리지 모드로 전환합니다:", err);
             enableLocalFallback();
         }
-    } 
+    }
 
     // 로컬 스토리지 데이터 로드
     function enableLocalFallback() {
@@ -1099,7 +1111,7 @@
             dateInput.value = `${yyyy}-${mm}-${dd}`;
         }
     }
-</script>
+</script>    
     
 </body>
 </html>
