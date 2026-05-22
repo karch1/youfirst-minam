@@ -518,10 +518,9 @@
      </script>
     
     <!-- CORE LOGIC & FIREBASE SDK (V10) INTEGRATION -->
-   <script type="module">
+  <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    // 랜선/서버가 오프라인시 고객데이터 입력 시 서버에 저장 -> 랜선/서버 회복시 -> db자동 동기화
     import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } 
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -531,7 +530,7 @@
     let db = null;
     let auth = null;
     let unsubscribe = null;
-    let activeEditId = null; // 인덱스 버그 해결을 위해 ID 저장으로 변경
+    let activeEditId = null; 
     let selectedEditStatus = '';
     let lastInsertedId = null; 
     let confirmCallback = null;
@@ -566,7 +565,7 @@
         }
     }
 
-    // 데이터베이스 연결 및 초기화 (리다이렉트 로그인 방식 적용)
+    // 데이터베이스 연결 및 초기화
     async function initDatabase() {
         const firebaseConfig = {
           apiKey: "AIzaSyBEuvbR1_Kgvbaf9ep71wDisRyld0iJMpU",
@@ -577,82 +576,81 @@
           appId: "1:728416151139:web:e271761416e8d69920ba56"
         };
 
-       if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
-    try {
-        const app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        
-        let user = null;
-        
-        // 1. 구글 로그인 후 돌아온 리다이렉트 결과가 있는지 확인
-        const redirectResult = await getRedirectResult(auth);
-        if (redirectResult && redirectResult.user) {
-            user = redirectResult.user;
-        } else {
-            user = auth.currentUser;
-        }
-
-        // 2. 현재 로그인된 유저가 없다면 구글 로그인창으로 리다이렉트
-        if (!user) {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
-                user = userCredential.user;
-            } else {
-                const provider = new GoogleAuthProvider();
-                provider.setCustomParameters({ prompt: 'select_account' }); 
-                
-                // 팝업 에러를 우회하기 위해 화면을 직접 전환합니다.
-                await signInWithRedirect(auth, provider);
-                return; // 리다이렉트 이동이 일어나므로 여기서 함수를 일시 종료합니다.
-            }
-        }
-
-        // 💡 3. 로그인 성공이 완전히 확정된 후 오프라인 지속성 DB를 초기화합니다!
-        db = initializeFirestore(app, {
-            localCache: persistentLocalCache({
-                tabManager: persistentMultipleTabManager()
-            })
-        });
-
-        console.log("Firebase 오프라인 지속성 모드로 로그인 및 DB 초기화 완료!");
-
-        // 4. 지정된 관리자 계정 권한 체크 (try 블록 내부로 이동)
-        if (!user || user.email !== 'yfminam@gmail.com') {
-            showToast("권한이 없는 계정입니다. 관리자 계정으로 로그인해주세요.", "error");
-            await auth.signOut(); 
+        if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
             enableLocalFallback();
             return;
         }
 
-        isFirebaseMode = true;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
-        const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
-
-        // Realtime 리스너 연결 (오프라인 상태에서도 캐시 데이터를 땡겨와 화면을 먼저 그려줍니다)
-        unsubscribe = onSnapshot(collectionRef, (snapshot) => {
-            customerData = [];
-            snapshot.forEach((docSnap) => {
-                customerData.push({ id: docSnap.id, ...docSnap.data() });
-            });
+        try {
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
             
-            sortDataByDefault();
-            updateAgentFilterDropdown();
-            renderTable();
-        }, (error) => {
-            console.error("Firestore 로딩 에러, 로컬 스토리지 모드로 전환합니다:", error);
-            enableLocalFallback();
-        });
-
-            } catch (err) {
-                console.error("Firebase 초기화 또는 로그인 실패, 로컬 스토리지 모드로 전환합니다:", err);
-                isFirebaseMode = false;
-                enableLocalFallback();
-                }
-        } else {
-                enableLocalFallback();
+            let user = null;
+            
+            // 1. 구글 로그인 후 돌아온 리다이렉트 결과 확인
+            const redirectResult = await getRedirectResult(auth);
+            if (redirectResult && redirectResult.user) {
+                user = redirectResult.user;
+            } else {
+                user = auth.currentUser;
             }
-    }
-       
+
+            // 2. 로그인된 유저가 없다면 리다이렉트 유도
+            if (!user) {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                    user = userCredential.user;
+                } else {
+                    const provider = new GoogleAuthProvider();
+                    provider.setCustomParameters({ prompt: 'select_account' }); 
+                    showToast("구글 인증 화면으로 이동합니다...", "info");
+                    await signInWithRedirect(auth, provider);
+                    return; 
+                }
+            }
+
+            // 관리자 권한 체크
+            if (!user || user.email !== 'yfminam@gmail.com') {
+                showToast("권한이 없는 계정입니다. 관리자 계정으로 로그인해주세요.", "error");
+                await auth.signOut(); 
+                enableLocalFallback();
+                return; 
+            }
+
+            // 관리자 계정이 맞을 때만 DB 초기화
+            db = initializeFirestore(app, {
+                localCache: persistentLocalCache({
+                    tabManager: persistentMultipleTabManager()
+                })
+            });
+
+            console.log("Firebase 오프라인 지속성 모드로 로그인 및 DB 초기화 완료!");
+
+            isFirebaseMode = true;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+            const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
+
+            // 리스너 연결
+            unsubscribe = onSnapshot(collectionRef, (snapshot) => {
+                customerData = [];
+                snapshot.forEach((docSnap) => {
+                    customerData.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                
+                sortDataByDefault();
+                updateAgentFilterDropdown();
+                renderTable();
+            }, (error) => {
+                console.error("Firestore 로딩 에러, 로컬 스토리지 모드로 전환합니다:", error);
+                enableLocalFallback();
+            });
+
+        } catch (err) {
+            console.error("Firebase 초기화 또는 로그인 실패, 로컬 스토리지 모드로 전환합니다:", err);
+            enableLocalFallback();
+        }
+    } 
+
     // 로컬 스토리지 데이터 로드
     function enableLocalFallback() {
         isFirebaseMode = false;
@@ -697,7 +695,6 @@
         let viewCount = 0;
 
         customerData.forEach((item) => {
-            // 필터링 기능 정의
             if (searchVal) {
                 const stringified = `${item.date} ${item.agent} ${item.name} ${item.phone} ${item.address} ${item.job} ${item.memo} ${item.status}`.toLowerCase();
                 if (!stringified.includes(searchVal)) return;
@@ -724,7 +721,6 @@
             else if (item.status === '개인상담 2차') badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
             else if (item.status === '단순문의') badgeColor = "bg-slate-200 text-slate-800 border-slate-300";
 
-            // 버그 수정: 인덱스 대신 고유 ID(item.id)를 매개변수로 전달하도록 변경
             tr.innerHTML = `
                 <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.date || '-'}</td>
                 <td class="p-4 text-[22px] font-black text-slate-700 whitespace-nowrap">${item.agent || '-'}</td>
@@ -863,9 +859,8 @@
         setDefaultRegDate();
     }
 
-    // 오프라인 로컬 백업 스토리지 데이터 저장 처리 (버그 수정: 불필요한 배열 이중추가 방지)
+    // 오프라인 로컬 백업 스토리지 데이터 저장 처리
     function saveToLocalFallback(newObj) {
-        // 이미 주소값 참조로 push된 상태가 아닐 때만 push 하도록 안전 처리 보강
         if (!customerData.some(item => item.id === newObj.id)) {
             customerData.push(newObj); 
         }
@@ -875,12 +870,12 @@
         renderTable();
     }
 
-    // 정보 수정 모달 창 열기 (버그 수정: 고유 ID 기반 검색)
+    // 정보 수정 모달 창 열기
     window.openEditModal = function(id) {
         const item = customerData.find(c => c.id === id);
         if (!item) return;
 
-        activeEditId = id; // 전역 변수에 ID 세팅
+        activeEditId = id; 
 
         document.getElementById('editModalHeader').innerHTML = `<span class="text-indigo-300 font-black">${item.name}</span> 고객님 (${item.agent} 설계사 담당) - 상세 정보 관리`;
         
@@ -896,29 +891,30 @@
         selectedEditStatus = item.status || '1차상담';
 
         const gridContainer = document.getElementById('statusGridOptions');
-        gridContainer.innerHTML = '';
-        
-        statuses.forEach(st => {
-            const btn = document.createElement('button');
-            btn.type = "button";
-            btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none";
-            btn.innerText = st;
+        if (gridContainer) {
+            gridContainer.innerHTML = '';
+            statuses.forEach(st => {
+                const btn = document.createElement('button');
+                btn.type = "button";
+                btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none";
+                btn.innerText = st;
 
-            if (st === selectedEditStatus) {
-                btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600', 'shadow-sm');
-            } else {
-                btn.classList.add('bg-slate-50', 'text-slate-600', 'border-slate-200', 'hover:bg-slate-100');
-            }
+                if (st === selectedEditStatus) {
+                    btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600', 'shadow-sm');
+                } else {
+                    btn.classList.add('bg-slate-50', 'text-slate-600', 'border-slate-200', 'hover:bg-slate-100');
+                }
 
-            btn.onclick = () => {
-                selectedEditStatus = st;
-                Array.from(gridContainer.children).forEach(child => {
-                    child.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100";
-                });
-                btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-indigo-600 text-white border-indigo-600 shadow-sm";
-            };
-            gridContainer.appendChild(btn);
-        });
+                btn.onclick = () => {
+                    selectedEditStatus = st;
+                    Array.from(gridContainer.children).forEach(child => {
+                        child.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100";
+                    });
+                    btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-indigo-600 text-white border-indigo-600 shadow-sm";
+                };
+                gridContainer.appendChild(btn);
+            });
+        }
 
         document.getElementById('editModal').classList.remove('hidden');
     }
@@ -929,7 +925,7 @@
         activeEditId = null;
     }
 
-    // 수정 완료 사항 최종 저장 처리 (버그 수정: 고유 ID 기반 타겟 업데이트)
+    // 수정 완료 사항 최종 저장 처리
     window.saveChanges = async function() {
         if (activeEditId === null) return;
         
@@ -1028,14 +1024,20 @@
         confirmCallback = null;
     }
 
-    const confirmBtn = document.getElementById('confirmModalActionBtn');
-    if (confirmBtn) {
-        confirmBtn.onclick = () => {
-            closeConfirmModal(true);
-        };
-    }
+    // DOMContentLoaded 시점에 확인 모달 액션 버튼 바인딩 추가
+    window.addEventListener('DOMContentLoaded', () => {
+        const confirmBtn = document.getElementById('confirmModalActionBtn');
+        if (confirmBtn) {
+            confirmBtn.onclick = () => {
+                closeConfirmModal(true);
+            };
+        }
+        setDefaultRegDate();
+        initDatabase();
+        openNotice();
+    });
 
-    // 데이터 행 기록 삭제 기능 (버그 수정: 고유 ID 기반 삭제 실행)
+    // 데이터 행 기록 삭제 기능
     window.deleteRow = function(id) {
         const target = customerData.find(c => c.id === id);
         if (!target) return;
@@ -1097,15 +1099,7 @@
             dateInput.value = `${yyyy}-${mm}-${dd}`;
         }
     }
-
-    // 웹 문서 로드 완료 시 애플리케이션 시작점 처리
-    window.addEventListener('DOMContentLoaded', () => {
-        setDefaultRegDate();
-        initDatabase();
-        openNotice();
-    });
 </script>
-    
     
 </body>
 </html>
