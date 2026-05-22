@@ -518,542 +518,574 @@
      </script>
     
     <!-- CORE LOGIC & FIREBASE SDK (V10) INTEGRATION -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+   <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Application State
-        let customerData = [];
-        let isFirebaseMode = false;
-        let db = null;
-        let auth = null;
-        let unsubscribe = null;
-        let activeEditIndex = null;
-        let selectedEditStatus = '';
-        let lastInsertedId = null; 
-        let confirmCallback = null;
+    // 애플리케이션 상태 관리 변수
+    let customerData = [];
+    let isFirebaseMode = false;
+    let db = null;
+    let auth = null;
+    let unsubscribe = null;
+    let activeEditId = null; // 인덱스 버그 해결을 위해 ID 저장으로 변경
+    let selectedEditStatus = '';
+    let lastInsertedId = null; 
+    let confirmCallback = null;
 
-        const statuses = ['1차상담', '개인상담 1차', '2차상담', '개인상담 2차', '단순문의'];
+    const statuses = ['1차상담', '개인상담 1차', '2차상담', '개인상담 2차', '단순문의'];
 
-        // Format Auto Handlers
-        window.autoFormatBirth = function(input) {
-            let val = input.value.replace(/[^0-9]/g, '');
-            if (val.length > 4 && val.length <= 6) {
-                input.value = val.slice(0, 4) + '-' + val.slice(4);
-            } else if (val.length > 6) {
-                input.value = val.slice(0, 4) + '-' + val.slice(4, 6) + '-' + val.slice(6, 8);
+    // 입력 포맷 자동 변환 핸들러 (생년월일)
+    window.autoFormatBirth = function(input) {
+        let val = input.value.replace(/[^0-9]/g, '');
+        if (val.length > 4 && val.length <= 6) {
+            input.value = val.slice(0, 4) + '-' + val.slice(4);
+        } else if (val.length > 6) {
+            input.value = val.slice(0, 4) + '-' + val.slice(4, 6) + '-' + val.slice(6, 8);
+        } else {
+            input.value = val;
+        }
+    }
+
+    // 입력 포맷 자동 변환 핸들러 (전화번호)
+    window.autoFormatPhone = function(input) {
+        let val = input.value.replace(/[^0-9]/g, '');
+        if (val.length > 3 && val.length <= 7) {
+            input.value = val.slice(0, 3) + '-' + val.slice(3);
+        } else if (val.length > 7) {
+            if (val.length === 11) {
+                input.value = val.slice(0, 3) + '-' + val.slice(3, 7) + '-' + val.slice(7);
             } else {
-                input.value = val;
+                input.value = val.slice(0, 3) + '-' + val.slice(3, 6) + '-' + val.slice(6);
             }
+        } else {
+            input.value = val;
         }
+    }
 
-        window.autoFormatPhone = function(input) {
-            let val = input.value.replace(/[^0-9]/g, '');
-            if (val.length > 3 && val.length <= 7) {
-                input.value = val.slice(0, 3) + '-' + val.slice(3);
-            } else if (val.length > 7) {
-                if (val.length === 11) {
-                    input.value = val.slice(0, 3) + '-' + val.slice(3, 7) + '-' + val.slice(7);
-                } else {
-                    input.value = val.slice(0, 3) + '-' + val.slice(3, 6) + '-' + val.slice(6);
-                }
-            } else {
-                input.value = val;
-            }
-        }
+    // 데이터베이스 연결 및 초기화
+    async function initDatabase() {
+        const firebaseConfig = {
+          apiKey: "AIzaSyBEuvbR1_Kgvbaf9ep71wDisRyld0iJMpU",
+          authDomain: "yfminam-b2402.firebaseapp.com",
+          projectId: "yfminam-b2402",
+          storageBucket: "yfminam-b2402.firebasestorage.app",
+          messagingSenderId: "728416151139",
+          appId: "1:728416151139:web:e271761416e8d69920ba56"
+        };
 
-        // Parse Firebase Configuration
-        function getSavedFirebaseConfig() {
-            const configStr = localStorage.getItem('fb_config_new');
-            if (configStr) {
-                try { return JSON.parse(configStr); } catch (e) { return null; }
-            }
-            return null;
-        }
-
-        // Initialize Database Connect
-        async function initDatabase() {
-            const fbConfig = {
-                  apiKey: "AIzaSyBbcu2dYOz_MdqXjeabF88VLLCv7V9KXNM",
-                  authDomain: "youfirst-minam.firebaseapp.com",
-                  projectId: "youfirst-minam",
-                  storageBucket: "youfirst-minam.firebasestorage.app",
-                  messagingSenderId: "1081813328361",
-                  appId: "1:1081813328361:web:67fb69bc5aaba91aebab78"
-                };
-
-            if (fbConfig && fbConfig.apiKey && fbConfig.projectId) {
+        if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                let user = null;
                 try {
-                    const app = initializeApp(fbConfig);
-                    auth = getAuth(app);
-                    db = getFirestore(app);
-                    
-                    let user;
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
                         user = userCredential.user;
                     } else {
-                        const userCredential = await signInAnonymously(auth);
+                        const provider = new GoogleAuthProvider();
+                        provider.setCustomParameters({ prompt: 'select_account' }); 
+                        const userCredential = await signInWithPopup(auth, provider);
                         user = userCredential.user;
                     }
 
-                    if (!user) {
+                    if (!user || user.email !== 'yfminam@gmail.com') {
+                        showToast("권한이 없는 계정입니다. 관리자 계정으로 로그인해주세요.", "error");
+                        await auth.signOut(); 
                         enableLocalFallback();
                         return;
                     }
 
-                    isFirebaseMode = true;
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
-                    const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
-
-                    unsubscribe = onSnapshot(collectionRef, (snapshot) => {
-                        customerData = [];
-                        snapshot.forEach((docSnap) => {
-                            customerData.push({ id: docSnap.id, ...docSnap.data() });
-                        });
-                        
-                        sortDataByDefault();
-                        updateAgentFilterDropdown();
-                        renderTable();
-                    }, (error) => {
-                        console.error("Firestore Loading Error, Switching to local storage:", error);
-                        enableLocalFallback();
-                    });
-
-                } catch (err) {
-                    console.error("Firebase Initialization Failure, Switched to local storage:", err);
+                } catch (loginError) {
+                    console.error("인증 실패 또는 팝업 차단:", loginError);
+                    showToast("로그인에 실패하여 로컬 모드로 전환합니다.", "error");
                     enableLocalFallback();
+                    return;
                 }
-            } else {
+
+                isFirebaseMode = true;
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+                const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
+
+                unsubscribe = onSnapshot(collectionRef, (snapshot) => {
+                    customerData = [];
+                    snapshot.forEach((docSnap) => {
+                        customerData.push({ id: docSnap.id, ...docSnap.data() });
+                    });
+                    
+                    sortDataByDefault();
+                    updateAgentFilterDropdown();
+                    renderTable();
+                }, (error) => {
+                    console.error("Firestore 로딩 에러, 로컬 스토리지 모드로 전환합니다:", error);
+                    enableLocalFallback();
+                });
+
+            } catch (err) {
+                console.error("Firebase 초기화 실패, 로컬 스토리지 모드로 전환합니다:", err);
                 enableLocalFallback();
             }
+        } else {
+            enableLocalFallback();
         }
+    }
 
-        // Fallback Local storage logic
-        function enableLocalFallback() {
-            isFirebaseMode = false;
-            const savedData = localStorage.getItem('local_customer_db_v2');
-            if (savedData) {
-                try {
-                    customerData = JSON.parse(savedData);
-                } catch (e) {
-                    customerData = [];
-                }
-            } else {
+    // 로컬 스토리지 데이터 로드
+    function enableLocalFallback() {
+        isFirebaseMode = false;
+        const savedData = localStorage.getItem('local_customer_db_v2');
+        if (savedData) {
+            try {
+                customerData = JSON.parse(savedData);
+            } catch (e) {
                 customerData = [];
-                localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
             }
-            sortDataByDefault();
-            updateAgentFilterDropdown();
-            renderTable();
-        }
-
-        function sortDataByDefault() {
-            customerData.sort((a, b) => new Date(a.date) - new Date(b.date)); // Default to past visits first
-            const dateSelect = document.getElementById('sortDate');
-            if (dateSelect) dateSelect.value = 'asc';
-        }
-
-        // Table Renderer (Updated with clean design & readable font classes)
-        window.renderTable = function() {
-            const tbody = document.getElementById('dbTableBody');
-            const searchVal = document.getElementById('tableSearch').value.trim().toLowerCase();
-            const filterStat = document.getElementById('filterStatus').value;
-            const filterAg = document.getElementById('filterAgent').value;
-            
-            tbody.innerHTML = '';
-            let viewCount = 0;
-
-            customerData.forEach((item, index) => {
-                // Global Multi-field Search
-                if (searchVal) {
-                    const stringified = `${item.date} ${item.agent} ${item.name} ${item.phone} ${item.address} ${item.job} ${item.memo} ${item.status}`.toLowerCase();
-                    if (!stringified.includes(searchVal)) return;
-                }
-
-                // Status Categorized Filter
-                if (filterStat !== 'ALL' && item.status !== filterStat) return;
-
-                // Agent Dropdown Filter
-                if (filterAg !== 'ALL' && item.agent !== filterAg) return;
-
-                viewCount++;
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 transition-colors group";
-                
-                // Color Code Maps to New Status Values
-                if (item.status === '1차상담') tr.classList.add('row-consult1');
-                else if (item.status === '2차상담') tr.classList.add('row-consult2');
-                else if (item.status === '개인상담 2차') tr.classList.add('row-consult-deep');
-
-                if (lastInsertedId && item.id === lastInsertedId) {
-                    tr.classList.add('row-flash');
-                }
-
-                let badgeColor = "bg-slate-100 text-slate-700 border-slate-200";
-                if (item.status === '1차상담') badgeColor = "bg-indigo-100 text-indigo-800 border-indigo-200";
-                else if (item.status === '개인상담 1차') badgeColor = "bg-cyan-100 text-cyan-800 border-cyan-200";
-                else if (item.status === '2차상담') badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
-                else if (item.status === '개인상담 2차') badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
-                else if (item.status === '단순문의') badgeColor = "bg-slate-200 text-slate-800 border-slate-300";
-
-                tr.innerHTML = `
-    <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.date}</td>
-    <td class="p-4 text-[22px] font-black text-slate-700 whitespace-nowrap">${item.agent}</td>
-    <td class="p-4 text-[22px] font-black text-slate-900 whitespace-nowrap">${item.name} <span class="text-[16px] text-slate-500 font-bold ml-1">${item.gender || ''}</span></td>
-    <td class="p-4 text-[22px] text-slate-600 whitespace-nowrap font-mono font-bold">${item.birth}</td>
-    <td class="p-4 text-[22px] text-slate-700 whitespace-nowrap font-mono font-bold">${item.phone}</td>
-    <td class="p-4 text-[22px] text-slate-500 max-w-[200px] truncate font-medium" title="${item.address}">${item.address}</td>
-    <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.job || '-'}</td>
-    <td class="p-4 text-[22px] text-slate-700 max-w-[450px] truncate cursor-pointer font-bold hover:text-indigo-600 transition-colors" onclick="openEditModal(${index})" title="클릭하여 수정하기">
-        <i class="fa-regular fa-comment-dots text-slate-400 mr-1.5 text-[20px]"></i> ${item.memo || '<span class="text-slate-300 italic font-normal">상담 기록 없음</span>'}
-    </td>
-    <td class="p-4 whitespace-nowrap">
-        <button onclick="openEditModal(${index})" class="px-4 py-2 rounded-full text-[20px] font-black border ${badgeColor} transition-all hover:scale-105 shadow-sm">
-            ${item.status}
-        </button>
-    </td>
-    <td class="p-4 text-center whitespace-nowrap">
-        <div class="flex items-center justify-center gap-3">
-            <button onclick="openEditModal(${index})" class="text-slate-400 hover:text-indigo-600 transition-colors p-1" title="상세 정보 수정">
-                <i class="fa-regular fa-pen-to-square text-[22px]"></i>
-            </button>
-            <button onclick="deleteRow(${index})" class="text-slate-400 hover:text-rose-600 transition-colors p-1" title="정보 삭제">
-                <i class="fa-regular fa-trash-can text-[22px]"></i>
-            </button>
-        </div>
-    </td>
-`;
-                tbody.appendChild(tr);
-            });
-
-            document.getElementById('tableSummary').innerText = `총 ${viewCount}명의 방문 데이터가 조회되었습니다.`;
-        }
-
-        // Dynamically parse unique agents
-        window.updateAgentFilterDropdown = function() {
-            const dropdown = document.getElementById('filterAgent');
-            const savedSelection = dropdown.value;
-            dropdown.innerHTML = '<option value="ALL">전체 담당자</option>';
-
-            const assignedAgents = ["김영순", "이승신", "홍성미", "제세영", "김미소", "장우식"];
-            assignedAgents.forEach(agent => {
-                const opt = document.createElement('option');
-                opt.value = agent;
-                opt.innerText = agent;
-                dropdown.appendChild(opt);
-            });
-
-            if (assignedAgents.includes(savedSelection)) {
-                dropdown.value = savedSelection;
-            } else {
-                dropdown.value = 'ALL';
-            }
-        }
-
-        // Hybrid sorting implementation (Stable date priority)
-        window.applySorting = function(primaryField, direction) {
-            const sortDateDir = document.getElementById('sortDate').value;
-            const sortAgentDir = document.getElementById('sortAgent').value;
-
-            customerData.sort((a, b) => {
-                let dateCompare = 0;
-                if (a.date && b.date) {
-                    const dateA = new Date(a.date);
-                    const dateB = new Date(b.date);
-                    dateCompare = sortDateDir === 'asc' ? dateA - dateB : dateB - dateA;
-                }
-
-                let agentCompare = 0;
-                if (sortAgentDir !== 'NONE' && a.agent && b.agent) {
-                    agentCompare = sortAgentDir === 'asc' ? a.agent.localeCompare(b.agent, 'ko') : b.agent.localeCompare(a.agent, 'ko');
-                }
-
-                if (primaryField === 'agent' && sortAgentDir !== 'NONE') {
-                    if (agentCompare !== 0) return agentCompare;
-                    return dateCompare;
-                } else {
-                    if (dateCompare !== 0) return dateCompare;
-                    return agentCompare;
-                }
-            });
-
-            renderTable();
-        }
-
-        // Handle record inserts
-        window.handleFormSubmit = async function() {
-            const date = document.getElementById('regDate').value;
-            const agent = document.getElementById('regAgent').value;
-            const name = document.getElementById('regName').value.trim();
-            const birth = document.getElementById('regBirth').value.trim();
-            const phone = document.getElementById('regPhone').value.trim();
-            const gender = document.getElementById('regGender').value;
-            const job = document.getElementById('regJob').value.trim();
-            const status = document.getElementById('regStatus').value;
-            const address = document.getElementById('regAddress').value.trim();
-            const memo = document.getElementById('regMemo').value.trim();
-
-            if (!agent) {
-                showToast("담당 설계사를 지정해야 합니다.", "error");
-                return;
-            }
-
-            const tempId = 'local-' + Date.now();
-            const newRecord = {
-                date, agent, name, birth, phone, gender, job, status, address, memo,
-                createdAt: new Date().toISOString()
-            };
-
-            lastInsertedId = tempId;
-
-            if (isFirebaseMode && db) {
-                try {
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
-                    const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
-                    const docRef = await addDoc(collectionRef, newRecord);
-                    lastInsertedId = docRef.id;
-                    showToast("성공적으로 클라우드 DB에 동기화되었습니다.", "success");
-                } catch (e) {
-                    showToast("동기화 오류가 발생했습니다. 로컬 디스크에 임시 보관합니다.", "error");
-                    saveToLocalFallback(Object.assign({ id: tempId }, newRecord));
-                }
-            } else {
-                saveToLocalFallback(Object.assign({ id: tempId }, newRecord));
-                showToast("로컬 대장에 안전하게 등록되었습니다.", "success");
-            }
-
-            // Clear Input Fields
-            document.getElementById('regName').value = '';
-            document.getElementById('regPhone').value = '';
-            document.getElementById('regBirth').value = '';
-            document.getElementById('regMemo').value = '';
-            document.getElementById('regAddress').value = '';
-            document.getElementById('regJob').value = '';
-            document.getElementById('regAgent').value = '';
-            
-            setDefaultRegDate();
-        }
-
-        function saveToLocalFallback(newObj) {
-            customerData.unshift(newObj); // Push to top
+        } else {
+            customerData = [];
             localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
-            updateAgentFilterDropdown();
+        }
+        sortDataByDefault();
+        updateAgentFilterDropdown();
+        renderTable();
+    }
+
+    // 기본 정렬 처리 (과거 방문일 순 정렬)
+    function sortDataByDefault() {
+        customerData.sort((a, b) => new Date(a.date) - new Date(b.date));
+        const dateSelect = document.getElementById('sortDate');
+        if (dateSelect) dateSelect.value = 'asc';
+    }
+
+    // 데이터 테이블 렌더러 (화면 표시)
+    window.renderTable = function() {
+        const tbody = document.getElementById('dbTableBody');
+        if (!tbody) return;
+
+        const searchInput = document.getElementById('tableSearch');
+        const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        
+        const filterStatSelect = document.getElementById('filterStatus');
+        const filterStat = filterStatSelect ? filterStatSelect.value : 'ALL';
+        
+        const filterAgSelect = document.getElementById('filterAgent');
+        const filterAg = filterAgSelect ? filterAgSelect.value : 'ALL';
+        
+        tbody.innerHTML = '';
+        let viewCount = 0;
+
+        customerData.forEach((item) => {
+            // 필터링 기능 정의
+            if (searchVal) {
+                const stringified = `${item.date} ${item.agent} ${item.name} ${item.phone} ${item.address} ${item.job} ${item.memo} ${item.status}`.toLowerCase();
+                if (!stringified.includes(searchVal)) return;
+            }
+            if (filterStat !== 'ALL' && item.status !== filterStat) return;
+            if (filterAg !== 'ALL' && item.agent !== filterAg) return;
+
+            viewCount++;
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-slate-50 transition-colors group";
+            
+            if (item.status === '1차상담') tr.classList.add('row-consult1');
+            else if (item.status === '2차상담') tr.classList.add('row-consult2');
+            else if (item.status === '개인상담 2차') tr.classList.add('row-consult-deep');
+
+            if (lastInsertedId && item.id === lastInsertedId) {
+                tr.classList.add('row-flash');
+            }
+
+            let badgeColor = "bg-slate-100 text-slate-700 border-slate-200";
+            if (item.status === '1차상담') badgeColor = "bg-indigo-100 text-indigo-800 border-indigo-200";
+            else if (item.status === '개인상담 1차') badgeColor = "bg-cyan-100 text-cyan-800 border-cyan-200";
+            else if (item.status === '2차상담') badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
+            else if (item.status === '개인상담 2차') badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
+            else if (item.status === '단순문의') badgeColor = "bg-slate-200 text-slate-800 border-slate-300";
+
+            // 버그 수정: 인덱스 대신 고유 ID(item.id)를 매개변수로 전달하도록 변경
+            tr.innerHTML = `
+                <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.date || '-'}</td>
+                <td class="p-4 text-[22px] font-black text-slate-700 whitespace-nowrap">${item.agent || '-'}</td>
+                <td class="p-4 text-[22px] font-black text-slate-900 whitespace-nowrap">${item.name || '-'} <span class="text-[16px] text-slate-500 font-bold ml-1">${item.gender || ''}</span></td>
+                <td class="p-4 text-[22px] text-slate-600 whitespace-nowrap font-mono font-bold">${item.birth || '-'}</td>
+                <td class="p-4 text-[22px] text-slate-700 whitespace-nowrap font-mono font-bold">${item.phone || '-'}</td>
+                <td class="p-4 text-[22px] text-slate-500 max-w-[200px] truncate font-medium" title="${item.address || ''}">${item.address || '-'}</td>
+                <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.job || '-'}</td>
+                <td class="p-4 text-[22px] text-slate-700 max-w-[450px] truncate cursor-pointer font-bold hover:text-indigo-600 transition-colors" onclick="openEditModal('${item.id}')" title="클릭하여 수정하기">
+                    <i class="fa-regular fa-comment-dots text-slate-400 mr-1.5 text-[20px]"></i> ${item.memo || '<span class="text-slate-300 italic font-normal">상담 기록 없음</span>'}
+                </td>
+                <td class="p-4 whitespace-nowrap">
+                    <button onclick="openEditModal('${item.id}')" class="px-4 py-2 rounded-full text-[20px] font-black border ${badgeColor} transition-all hover:scale-105 shadow-sm">
+                        ${item.status}
+                    </button>
+                </td>
+                <td class="p-4 text-center whitespace-nowrap">
+                    <div class="flex items-center justify-center gap-3">
+                        <button onclick="openEditModal('${item.id}')" class="text-slate-400 hover:text-indigo-600 transition-colors p-1" title="상세 정보 수정">
+                            <i class="fa-regular fa-pen-to-square text-[22px]"></i>
+                        </button>
+                        <button onclick="deleteRow('${item.id}')" class="text-slate-400 hover:text-rose-600 transition-colors p-1" title="정보 삭제">
+                            <i class="fa-regular fa-trash-can text-[22px]"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        const summaryEl = document.getElementById('tableSummary');
+        if (summaryEl) summaryEl.innerText = `총 ${viewCount}명의 방문 데이터가 조회되었습니다.`;
+    }
+
+    // 담당 설계사 목록 드롭다운 동적 업데이트
+    window.updateAgentFilterDropdown = function() {
+        const dropdown = document.getElementById('filterAgent');
+        if (!dropdown) return;
+        const savedSelection = dropdown.value;
+        dropdown.innerHTML = '<option value="ALL">전체 담당자</option>';
+
+        const assignedAgents = ["김영순", "이승신", "홍성미", "제세영", "김미소", "장우식"];
+        assignedAgents.forEach(agent => {
+            const opt = document.createElement('option');
+            opt.value = agent;
+            opt.innerText = agent;
+            dropdown.appendChild(opt);
+        });
+
+        if (assignedAgents.includes(savedSelection)) {
+            dropdown.value = savedSelection;
+        } else {
+            dropdown.value = 'ALL';
+        }
+    }
+
+    // 하이브리드 다중 정렬 구현 로직
+    window.applySorting = function(primaryField, direction) {
+        const sortDateDir = document.getElementById('sortDate').value;
+        const sortAgentDir = document.getElementById('sortAgent').value;
+
+        customerData.sort((a, b) => {
+            let dateCompare = 0;
+            if (a.date && b.date) {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                dateCompare = sortDateDir === 'asc' ? dateA - dateB : dateB - dateA;
+            }
+
+            let agentCompare = 0;
+            if (sortAgentDir !== 'NONE' && a.agent && b.agent) {
+                agentCompare = sortAgentDir === 'asc' ? a.agent.localeCompare(b.agent, 'ko') : b.agent.localeCompare(a.agent, 'ko');
+            }
+
+            if (primaryField === 'agent' && sortAgentDir !== 'NONE') {
+                if (agentCompare !== 0) return agentCompare;
+                return dateCompare;
+            } else {
+                if (dateCompare !== 0) return dateCompare;
+                return agentCompare;
+            }
+        });
+
+        renderTable();
+    }
+
+    // 신규 방문 고객 정보 등록 처리
+    window.handleFormSubmit = async function() {
+        const date = document.getElementById('regDate').value;
+        const agent = document.getElementById('regAgent').value;
+        const name = document.getElementById('regName').value.trim();
+        const birth = document.getElementById('regBirth').value.trim();
+        const phone = document.getElementById('regPhone').value.trim();
+        const gender = document.getElementById('regGender').value;
+        const job = document.getElementById('regJob').value.trim();
+        const status = document.getElementById('regStatus').value;
+        const address = document.getElementById('regAddress').value.trim();
+        const memo = document.getElementById('regMemo').value.trim();
+
+        if (!agent) { showToast("담당 설계사를 지정해야 합니다.", "error"); return; }
+        if (!name) { showToast("고객 이름을 입력해야 합니다.", "error"); return; }
+
+        const tempId = 'local-' + Date.now();
+        const newRecord = {
+            date, agent, name, birth, phone, gender, job, status, address, memo,
+            createdAt: new Date().toISOString()
+        };
+
+        lastInsertedId = tempId;
+
+        if (isFirebaseMode && db) {
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+                const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
+                const docRef = await addDoc(collectionRef, newRecord);
+                lastInsertedId = docRef.id;
+                showToast("성공적으로 클라우드 DB에 동기화되었습니다.", "success");
+            } catch (e) {
+                showToast("동기화 오류가 발생했습니다. 로컬 디스크에 임시 보관합니다.", "error");
+                saveToLocalFallback(Object.assign({ id: tempId }, newRecord));
+            }
+        } else {
+            saveToLocalFallback(Object.assign({ id: tempId }, newRecord));
+            showToast("로컬 대장에 안전하게 등록되었습니다.", "success");
+        }
+
+        // 폼 필드 초기화
+        document.getElementById('regName').value = '';
+        document.getElementById('regPhone').value = '';
+        document.getElementById('regBirth').value = '';
+        document.getElementById('regMemo').value = '';
+        document.getElementById('regAddress').value = '';
+        document.getElementById('regJob').value = '';
+        document.getElementById('regAgent').value = '';
+        
+        setDefaultRegDate();
+    }
+
+    // 오프라인 로컬 백업 스토리지 데이터 저장 처리 (버그 수정: 불필요한 배열 이중추가 방지)
+    function saveToLocalFallback(newObj) {
+        // 이미 주소값 참조로 push된 상태가 아닐 때만 push 하도록 안전 처리 보강
+        if (!customerData.some(item => item.id === newObj.id)) {
+            customerData.push(newObj); 
+        }
+        sortDataByDefault();
+        localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
+        updateAgentFilterDropdown();
+        renderTable();
+    }
+
+    // 정보 수정 모달 창 열기 (버그 수정: 고유 ID 기반 검색)
+    window.openEditModal = function(id) {
+        const item = customerData.find(c => c.id === id);
+        if (!item) return;
+
+        activeEditId = id; // 전역 변수에 ID 세팅
+
+        document.getElementById('editModalHeader').innerHTML = `<span class="text-indigo-300 font-black">${item.name}</span> 고객님 (${item.agent} 설계사 담당) - 상세 정보 관리`;
+        
+        document.getElementById('editDate').value = item.date || '';
+        document.getElementById('editAgent').value = item.agent || '';
+        document.getElementById('editName').value = item.name || '';
+        document.getElementById('editBirth').value = item.birth || '';
+        document.getElementById('editPhone').value = item.phone || '';
+        document.getElementById('editGender').value = item.gender || '여';
+        document.getElementById('editJob').value = item.job || '';
+        document.getElementById('editAddress').value = item.address || '';
+        document.getElementById('editModalMemo').value = item.memo || '';
+        selectedEditStatus = item.status || '1차상담';
+
+        const gridContainer = document.getElementById('statusGridOptions');
+        gridContainer.innerHTML = '';
+        
+        statuses.forEach(st => {
+            const btn = document.createElement('button');
+            btn.type = "button";
+            btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none";
+            btn.innerText = st;
+
+            if (st === selectedEditStatus) {
+                btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600', 'shadow-sm');
+            } else {
+                btn.classList.add('bg-slate-50', 'text-slate-600', 'border-slate-200', 'hover:bg-slate-100');
+            }
+
+            btn.onclick = () => {
+                selectedEditStatus = st;
+                Array.from(gridContainer.children).forEach(child => {
+                    child.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100";
+                });
+                btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-indigo-600 text-white border-indigo-600 shadow-sm";
+            };
+            gridContainer.appendChild(btn);
+        });
+
+        document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    // 정보 수정 모달 창 닫기
+    window.closeEditModal = function() {
+        document.getElementById('editModal').classList.add('hidden');
+        activeEditId = null;
+    }
+
+    // 수정 완료 사항 최종 저장 처리 (버그 수정: 고유 ID 기반 타겟 업데이트)
+    window.saveChanges = async function() {
+        if (activeEditId === null) return;
+        
+        const target = customerData.find(c => c.id === activeEditId);
+        if (!target) return;
+
+        const updatedDataObj = {
+            date: document.getElementById('editDate').value,
+            agent: document.getElementById('editAgent').value.trim(),
+            name: document.getElementById('editName').value.trim(),
+            birth: document.getElementById('editBirth').value.trim(),
+            phone: document.getElementById('editPhone').value.trim(),
+            gender: document.getElementById('editGender').value,
+            job: document.getElementById('editJob').value.trim(),
+            address: document.getElementById('editAddress').value.trim(),
+            memo: document.getElementById('editModalMemo').value.trim(),
+            status: selectedEditStatus
+        };
+
+        if (isFirebaseMode && db && !target.id.startsWith('local-')) {
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'visitors', target.id);
+                await updateDoc(docRef, updatedDataObj);
+                showToast("변경 사항이 실시간 저장되었습니다.", "success");
+            } catch (e) {
+                showToast("변경 실시간 동기화에 실패하여 로컬 버퍼에 보관합니다.", "error");
+                updateLocalDataDirectly(updatedDataObj);
+            }
+        } else {
+            updateLocalDataDirectly(updatedDataObj);
+            showToast("변경 내역이 보관되었습니다.", "success");
+        }
+
+        closeEditModal();
+    }
+
+    // 로컬 스토리지 내 데이터 직접 수정 업데이트 처리
+    function updateLocalDataDirectly(updatedObj) {
+        const idx = customerData.findIndex(c => c.id === activeEditId);
+        if (idx !== -1) {
+            Object.assign(customerData[idx], updatedObj);
+            localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
             renderTable();
         }
+    }
 
-        // Open Edit Modal
-        window.openEditModal = function(index) {
-            activeEditIndex = index;
-            const item = customerData[index];
+    // 화면 UI 알림 토스트 메시지 띄우기
+    window.showToast = function(message, type = "success") {
+        const toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) return;
+        
+        const toast = document.createElement('div');
+        toast.className = `flex items-center gap-3 px-5 py-4 rounded-xl shadow-lg border text-sm font-black transition-all duration-300 translate-y-2 opacity-0 shrink-0 ${
+            type === 'success' 
+            ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
+            : type === 'error'
+            ? 'bg-rose-50 border-rose-100 text-rose-800'
+            : 'bg-amber-50 border-amber-100 text-amber-800'
+        }`;
+        
+        const icon = type === 'success' 
+            ? '<i class="fa-solid fa-circle-check text-lg"></i>' 
+            : type === 'error' 
+            ? '<i class="fa-solid fa-circle-exclamation text-lg"></i>' 
+            : '<i class="fa-solid fa-triangle-exclamation text-lg"></i>';
 
-            document.getElementById('editModalHeader').innerHTML = `<span class="text-indigo-300 font-black">${item.name}</span> 고객님 (${item.agent} 설계사 담당) - 상세 정보 관리`;
-            
-            // Map values
-            document.getElementById('editDate').value = item.date || '';
-            document.getElementById('editAgent').value = item.agent || '';
-            document.getElementById('editName').value = item.name || '';
-            document.getElementById('editBirth').value = item.birth || '';
-            document.getElementById('editPhone').value = item.phone || '';
-            document.getElementById('editGender').value = item.gender || '여';
-            document.getElementById('editJob').value = item.job || '';
-            document.getElementById('editAddress').value = item.address || '';
-            document.getElementById('editModalMemo').value = item.memo || '';
-            selectedEditStatus = item.status || '1차상담';
+        toast.innerHTML = `${icon} <span>${message}</span>`;
+        toastContainer.appendChild(toast);
 
-            // Generate status layout buttons (Larger and bolder font size)
-            const gridContainer = document.getElementById('statusGridOptions');
-            gridContainer.innerHTML = '';
-            
-            statuses.forEach(st => {
-                const btn = document.createElement('button');
-                btn.type = "button";
-                btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none";
-                btn.innerText = st;
+        setTimeout(() => {
+            toast.classList.remove('translate-y-2', 'opacity-0');
+        }, 10);
 
-                if (st === selectedEditStatus) {
-                    btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600', 'shadow-sm');
-                } else {
-                    btn.classList.add('bg-slate-50', 'text-slate-600', 'border-slate-200', 'hover:bg-slate-100');
-                }
+        setTimeout(() => {
+            toast.classList.add('translate-y-2', 'opacity-0');
+            setTimeout(() => {
+                toast.remove();
+            }, 300);
+        }, 3000);
+    }
 
-                btn.onclick = () => {
-                    selectedEditStatus = st;
-                    Array.from(gridContainer.children).forEach(child => {
-                        child.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100";
-                    });
-                    btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-indigo-600 text-white border-indigo-600 shadow-sm";
-                };
-                gridContainer.appendChild(btn);
-            });
+    // 커스텀 안전 확인 모달 열기
+    window.openConfirmModal = function(text, successAction) {
+        document.getElementById('confirmModalText').innerText = text;
+        document.getElementById('confirmModal').classList.remove('hidden');
+        confirmCallback = successAction;
+    }
 
-            document.getElementById('editModal').classList.remove('hidden');
+    // 커스텀 안전 확인 모달 닫기 및 콜백 실행
+    window.closeConfirmModal = function(execute = false) {
+        document.getElementById('confirmModal').classList.add('hidden');
+        if (execute && confirmCallback) {
+            confirmCallback();
         }
+        confirmCallback = null;
+    }
 
-        window.closeEditModal = function() {
-            document.getElementById('editModal').classList.add('hidden');
-            activeEditIndex = null;
-        }
+    const confirmBtn = document.getElementById('confirmModalActionBtn');
+    if (confirmBtn) {
+        confirmBtn.onclick = () => {
+            closeConfirmModal(true);
+        };
+    }
 
-        // Save modification edits
-        window.saveChanges = async function() {
-            if (activeEditIndex === null) return;
-            const target = customerData[activeEditIndex];
+    // 데이터 행 기록 삭제 기능 (버그 수정: 고유 ID 기반 삭제 실행)
+    window.deleteRow = function(id) {
+        const target = customerData.find(c => c.id === id);
+        if (!target) return;
 
-            const updatedDataObj = {
-                date: document.getElementById('editDate').value,
-                agent: document.getElementById('editAgent').value.trim(),
-                name: document.getElementById('editName').value.trim(),
-                birth: document.getElementById('editBirth').value.trim(),
-                phone: document.getElementById('editPhone').value.trim(),
-                gender: document.getElementById('editGender').value,
-                job: document.getElementById('editJob').value.trim(),
-                address: document.getElementById('editAddress').value.trim(),
-                memo: document.getElementById('editModalMemo').value.trim(),
-                status: selectedEditStatus
-            };
-
-            if (isFirebaseMode && db && target.id) {
+        window.openConfirmModal(`[확인] ${target.name} 고객님의 방문 기록을 영구 삭제하시겠습니까?`, async () => {
+            if (isFirebaseMode && db && !target.id.startsWith('local-')) {
                 try {
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'visitors', target.id);
-                    await updateDoc(docRef, updatedDataObj);
-                    showToast("변경 사항이 실시간 저장되었습니다.", "success");
+                    await deleteDoc(docRef);
+                    showToast("클라우드 DB에서 완벽하게 파기되었습니다.", "success");
                 } catch (e) {
-                    showToast("변경 실시간 동기화에 실패하여 로컬 버퍼에 보관합니다.", "error");
-                    updateLocalDataDirectly(updatedDataObj);
+                    showToast("데이터 삭제에 실패했습니다.", "error");
                 }
             } else {
-                updateLocalDataDirectly(updatedDataObj);
-                showToast("변경 내역이 보관되었습니다.", "success");
+                customerData = customerData.filter(c => c.id !== id);
+                localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
+                updateAgentFilterDropdown();
+                renderTable();
+                showToast("대장에서 완벽하게 삭제되었습니다.", "success");
             }
-
-            closeEditModal();
-        }
-
-        function updateLocalDataDirectly(updatedObj) {
-            Object.assign(customerData[activeEditIndex], updatedObj);
-            localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
-            renderTable();
-        }
-
-        // UI Toast Messages (Enhanced text size)
-        window.showToast = function(message, type = "success") {
-            const toastContainer = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = `flex items-center gap-3 px-5 py-4 rounded-xl shadow-lg border text-sm font-black transition-all duration-300 translate-y-2 opacity-0 shrink-0 ${
-                type === 'success' 
-                ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
-                : type === 'error'
-                ? 'bg-rose-50 border-rose-100 text-rose-800'
-                : 'bg-amber-50 border-amber-100 text-amber-800'
-            }`;
-            
-            const icon = type === 'success' 
-                ? '<i class="fa-solid fa-circle-check text-lg"></i>' 
-                : type === 'error' 
-                ? '<i class="fa-solid fa-circle-exclamation text-lg"></i>' 
-                : '<i class="fa-solid fa-triangle-exclamation text-lg"></i>';
-
-            toast.innerHTML = `${icon} <span>${message}</span>`;
-            toastContainer.appendChild(toast);
-
-            setTimeout(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            }, 10);
-
-            setTimeout(() => {
-                toast.classList.add('translate-y-2', 'opacity-0');
-                setTimeout(() => {
-                    toast.remove();
-                }, 300);
-            }, 3000);
-        }
-
-        // Custom Safe Modals
-        window.openConfirmModal = function(text, successAction) {
-            document.getElementById('confirmModalText').innerText = text;
-            document.getElementById('confirmModal').classList.remove('hidden');
-            confirmCallback = successAction;
-        }
-
-        window.closeConfirmModal = function(execute = false) {
-            document.getElementById('confirmModal').classList.add('hidden');
-            if (execute && confirmCallback) {
-                confirmCallback();
-            }
-            confirmCallback = null;
-        }
-
-        document.getElementById('confirmModalActionBtn').onclick = () => {
-            closeConfirmModal(true);
-        };
-
-        // Row deletion
-        window.deleteRow = function(index) {
-            const target = customerData[index];
-            window.openConfirmModal(`[확인] ${target.name} 고객님의 방문 기록을 영구 삭제하시겠습니까?`, async () => {
-                if (isFirebaseMode && db && target.id) {
-                    try {
-                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
-                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'visitors', target.id);
-                        await deleteDoc(docRef);
-                        showToast("클라우드 DB에서 완벽하게 파기되었습니다.", "success");
-                    } catch (e) {
-                        showToast("데이터 삭제에 실패했습니다.", "error");
-                    }
-                } else {
-                    customerData.splice(index, 1);
-                    localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
-                    updateAgentFilterDropdown();
-                    renderTable();
-                    showToast("대장에서 완벽하게 삭제되었습니다.", "success");
-                }
-            });
-        }
-
-        // Notice Dialog Controllers
-        window.openNotice = function(force = false) {
-            const isHiddenToday = localStorage.getItem('hide_notice_today_v2');
-            const expiry = localStorage.getItem('hide_notice_expiry_v2');
-            const now = new Date().getTime();
-
-            if (force || !isHiddenToday || (expiry && now > expiry)) {
-                document.getElementById('noticeModal').classList.remove('hidden');
-            }
-        }
-
-        window.closeNotice = function() {
-            const checkbox = document.getElementById('hideNoticeCheck');
-            if (checkbox && checkbox.checked) {
-                const expiryTime = new Date().getTime() + (24 * 60 * 60 * 1000); // 24 Hours
-                localStorage.setItem('hide_notice_today_v2', 'true');
-                localStorage.setItem('hide_notice_expiry_v2', expiryTime);
-            }
-            document.getElementById('noticeModal').classList.add('hidden');
-        }
-
-        function setDefaultRegDate() {
-            const dateInput = document.getElementById('regDate');
-            if (dateInput) {
-                const today = new Date();
-                const yyyy = today.getFullYear();
-                let mm = today.getMonth() + 1;
-                let dd = today.getDate();
-                if (mm < 10) mm = '0' + mm;
-                if (dd < 10) dd = '0' + dd;
-                dateInput.value = `${yyyy}-${mm}-${dd}`;
-            }
-        }
-
-        // Initialize App Entry
-        window.addEventListener('DOMContentLoaded', () => {
-            setDefaultRegDate();
-            initDatabase();
-            openNotice();
         });
+    }
 
-    </script>
+    // 공지사항 모달 열기 제어
+    window.openNotice = function(force = false) {
+        const isHiddenToday = localStorage.getItem('hide_notice_today_v2');
+        const expiry = localStorage.getItem('hide_notice_expiry_v2');
+        const now = new Date().getTime();
+
+        if (force || !isHiddenToday || (expiry && now > expiry)) {
+            const noticeModal = document.getElementById('noticeModal');
+            if (noticeModal) noticeModal.classList.remove('hidden');
+        }
+    }
+
+    // 공지사항 모달 닫기
+    window.closeNotice = function() {
+        const checkbox = document.getElementById('hideNoticeCheck');
+        if (checkbox && checkbox.checked) {
+            const expiryTime = new Date().getTime() + (24 * 60 * 60 * 1000);
+            localStorage.setItem('hide_notice_today_v2', 'true');
+            localStorage.setItem('hide_notice_expiry_v2', expiryTime);
+        }
+        const noticeModal = document.getElementById('noticeModal');
+        if (noticeModal) noticeModal.classList.add('hidden');
+    }
+
+    // 기본 등록 날짜 설정 (오늘 날짜 자동 기입)
+    function setDefaultRegDate() {
+        const dateInput = document.getElementById('regDate');
+        if (dateInput) {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            let mm = today.getMonth() + 1;
+            let dd = today.getDate();
+            if (mm < 10) mm = '0' + mm;
+            if (dd < 10) dd = '0' + dd;
+            dateInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+    }
+
+    // 웹 문서 로드 완료 시 애플리케이션 시작점 처리
+    window.addEventListener('DOMContentLoaded', () => {
+        setDefaultRegDate();
+        initDatabase();
+        openNotice();
+    });
+</script>
+    
 </body>
 </html>
