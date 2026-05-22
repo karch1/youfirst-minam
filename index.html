@@ -227,6 +227,157 @@
                 </div>
             </div>
         </section>
+
+        <!-- 공지사항 모달 -->
+<div id="noticeModal"
+class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
+
+        <div class="bg-indigo-600 text-white px-6 py-4 flex items-center justify-between">
+            <h2 class="text-xl font-black flex items-center gap-2">
+                <i class="fa-solid fa-bullhorn"></i>
+                공지사항
+            </h2>
+
+            <button onclick="closeNotice()" class="text-white text-2xl">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-6 space-y-4 text-slate-700">
+            <p class="font-bold">• 고객 정보는 실시간 저장됩니다.</p>
+            <p class="font-bold">• 중복 전화번호는 등록되지 않습니다.</p>
+            <p class="font-bold">• 삭제된 데이터는 복구되지 않습니다.</p>
+
+            <label class="flex items-center gap-2 mt-4">
+                <input type="checkbox" id="hideNoticeCheck">
+                <span class="text-sm font-bold">오늘 하루 보지 않기</span>
+            </label>
+        </div>
+
+        <div class="px-6 py-4 bg-slate-50 flex justify-end">
+            <button onclick="closeNotice()"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-black">
+                확인
+            </button>
+        </div>
+
+    </div>
+</div>
+
+        <!-- 수정 모달 -->
+<div id="editModal"
+class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 overflow-y-auto">
+
+    <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden">
+
+        <div class="bg-brand-700 text-white px-6 py-5 flex items-center justify-between">
+            <h2 id="editModalHeader" class="font-black text-lg"></h2>
+
+            <button onclick="closeEditModal()" class="text-2xl">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-6 grid grid-cols-2 gap-4">
+
+            <input type="date" id="editDate"
+            class="p-3 border-2 border-slate-200 rounded-lg">
+
+            <input type="text" id="editAgent"
+            placeholder="담당 설계사"
+            class="p-3 border-2 border-slate-200 rounded-lg">
+
+            <input type="text" id="editName"
+            placeholder="고객 이름"
+            class="p-3 border-2 border-slate-200 rounded-lg">
+
+            <input type="text" id="editBirth"
+            placeholder="생년월일"
+            class="p-3 border-2 border-slate-200 rounded-lg">
+
+            <input type="text" id="editPhone"
+            placeholder="연락처"
+            class="p-3 border-2 border-slate-200 rounded-lg">
+
+            <select id="editGender"
+            class="p-3 border-2 border-slate-200 rounded-lg">
+                <option value="여">여성</option>
+                <option value="남">남성</option>
+            </select>
+
+            <input type="text" id="editJob"
+            placeholder="직업"
+            class="p-3 border-2 border-slate-200 rounded-lg">
+
+            <input type="text" id="editAddress"
+            placeholder="주소"
+            class="p-3 border-2 border-slate-200 rounded-lg col-span-2">
+
+            <textarea id="editModalMemo"
+            rows="5"
+            placeholder="상담 내용"
+            class="col-span-2 p-3 border-2 border-slate-200 rounded-lg resize-none"></textarea>
+
+            <div class="col-span-2">
+                <label class="block font-black mb-2">진행 현황</label>
+
+                <div id="statusGridOptions"
+                class="grid grid-cols-2 md:grid-cols-5 gap-2"></div>
+            </div>
+
+        </div>
+
+        <div class="bg-slate-50 px-6 py-4 flex justify-end gap-3">
+            <button onclick="closeEditModal()"
+            class="px-5 py-2 rounded-lg border font-black">
+                취소
+            </button>
+
+            <button onclick="saveChanges()"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-black">
+                수정 저장
+            </button>
+        </div>
+
+    </div>
+</div>
+
+        <!-- 확인 모달 -->
+<div id="confirmModal"
+class="hidden fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4">
+
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+
+        <div class="p-6 text-center">
+
+            <div class="text-5xl text-rose-500 mb-4">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+
+            <p id="confirmModalText"
+            class="text-lg font-black text-slate-700 leading-relaxed"></p>
+
+        </div>
+
+        <div class="bg-slate-50 px-6 py-4 flex justify-center gap-3">
+
+            <button onclick="closeConfirmModal()"
+            class="px-5 py-2 rounded-lg border font-black">
+                취소
+            </button>
+
+            <button id="confirmModalActionBtn"
+            class="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-lg font-black">
+                삭제 진행
+            </button>
+
+        </div>
+
+    </div>
+</div>
+        
     </main>
     
     <!-- Toast Container -->
