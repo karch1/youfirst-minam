@@ -843,6 +843,22 @@
 
         if (!agent) { showToast("담당 설계사를 지정해야 합니다.", "error"); return; }
         if (!name) { showToast("고객 이름을 입력해야 합니다.", "error"); return; }
+        if (!phone) { showToast("전화번호를 입력해야 합니다.", "error"); return; }
+
+        // 🚨 [전화번호 중복 검사 로직 추가]
+        // 하이픈(-)이나 공백을 전부 지우고 오직 "숫자"만 추출해서 비교합니다.
+        const inputNum = phone.replace(/[^0-9]/g, '');
+        
+        const duplicateUser = customerData.find(customer => {
+            const existingNum = (customer.phone || '').replace(/[^0-9]/g, '');
+            return existingNum === inputNum && inputNum !== '';
+        });
+
+        // 대장에 이미 똑같은 번호가 존재한다면 저장 프로세스를 중단시킵니다.
+        if (duplicateUser) {
+            showToast(`이미 등록된 전화번호입니다. (기존 등록자: ${duplicateUser.name})`, "error");
+            return; 
+        }
 
         const tempId = 'local-' + Date.now();
         const newRecord = {
@@ -946,43 +962,63 @@
         activeEditId = null;
     }
 
-    // 수정 완료 사항 최종 저장 처리
-    window.saveChanges = async function() {
-        if (activeEditId === null) return;
-        
-        const target = customerData.find(c => c.id === activeEditId);
-        if (!target) return;
+   // 수정 완료 사항 최종 저장 처리
+window.saveChanges = async function() {
+    if (activeEditId === null) return;
+    
+    const target = customerData.find(c => c.id === activeEditId);
+    if (!target) return;
 
-        const updatedDataObj = {
-            date: document.getElementById('editDate').value,
-            agent: document.getElementById('editAgent').value.trim(),
-            name: document.getElementById('editName').value.trim(),
-            birth: document.getElementById('editBirth').value.trim(),
-            phone: document.getElementById('editPhone').value.trim(),
-            gender: document.getElementById('editGender').value,
-            job: document.getElementById('editJob').value.trim(),
-            address: document.getElementById('editAddress').value.trim(),
-            memo: document.getElementById('editModalMemo').value.trim(),
-            status: selectedEditStatus
-        };
+    // 1. 입력된 전화번호 가져오기 및 숫자만 추출
+    const inputPhone = document.getElementById('editPhone').value.trim();
+    const cleanInputPhone = inputPhone.replace(/[^0-9]/g, '');
 
-        if (isFirebaseMode && db && !target.id.startsWith('local-')) {
-            try {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'visitors', target.id);
-                await updateDoc(docRef, updatedDataObj);
-                showToast("변경 사항이 실시간 저장되었습니다.", "success");
-            } catch (e) {
-                showToast("변경 실시간 동기화에 실패하여 로컬 버퍼에 보관합니다.", "error");
-                updateLocalDataDirectly(updatedDataObj);
-            }
-        } else {
-            updateLocalDataDirectly(updatedDataObj);
-            showToast("변경 내역이 보관되었습니다.", "success");
+    // 🔥 [추가된 로직] 수정 시 전화번호 중복 검사
+    if (cleanInputPhone !== '') {
+        const duplicateUser = customerData.find(customer => {
+            const cleanExistingPhone = (customer.phone || '').replace(/[^0-9]/g, '');
+            // 다른 사람 중에서 번호가 같은 사람이 있는지 검사 (나 자신은 제외)
+            return cleanExistingPhone === cleanInputPhone && customer.id !== activeEditId;
+        });
+
+        if (duplicateUser) {
+            // 다른 고객과 번호가 겹치면 경고를 띄우고 저장을 중단합니다.
+            showToast(`이미 등록된 전화번호입니다. (기존 등록자: ${duplicateUser.name} / 담당: ${duplicateUser.agent}설계사)`, "error");
+            return; // 함수를 여기서 종료하여 Firebase나 로컬에 저장되지 않도록 막음
         }
-
-        closeEditModal();
     }
+
+    // 2. 중복 검사를 통과하면 기존대로 데이터 객체 생성 및 저장 진행
+    const updatedDataObj = {
+        date: document.getElementById('editDate').value,
+        agent: document.getElementById('editAgent').value.trim(),
+        name: document.getElementById('editName').value.trim(),
+        birth: document.getElementById('editBirth').value.trim(),
+        phone: inputPhone, // 원본 포맷으로 저장
+        gender: document.getElementById('editGender').value,
+        job: document.getElementById('editJob').value.trim(),
+        address: document.getElementById('editAddress').value.trim(),
+        memo: document.getElementById('editModalMemo').value.trim(),
+        status: selectedEditStatus
+    };
+
+    if (isFirebaseMode && db && !target.id.startsWith('local-')) {
+        try {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'visitors', target.id);
+            await updateDoc(docRef, updatedDataObj);
+            showToast("변경 사항이 실시간 저장되었습니다.", "success");
+        } catch (e) {
+            showToast("변경 실시간 동기화에 실패하여 로컬 버퍼에 보관합니다.", "error");
+            updateLocalDataDirectly(updatedDataObj);
+        }
+    } else {
+        updateLocalDataDirectly(updatedDataObj);
+        showToast("변경 내역이 보관되었습니다.", "success");
+    }
+
+    closeEditModal();
+}
 
     // 로컬 스토리지 내 데이터 직접 수정 업데이트 처리
     function updateLocalDataDirectly(updatedObj) {
