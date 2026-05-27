@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#102a43">
     <title>GA 보험사 1층 방문고객 관리 시스템</title>
     
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind 디자인 테마 설정 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -27,18 +27,17 @@
             }
         }
     </script>
-    <!-- Google Fonts: Pretendard for clean Korean typography -->
+    
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
-    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <style>
         body {
             font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
             background-color: #f8fafc;
-            font-size: 24px; /* Base size scaled up for readability */
+            font-size: 24px; /* 기본 글자크기 */
         }
-        /* Custom scrollbar to keep it sleek */
+        /* 스크롤바 디자인 커스텀 */
         ::-webkit-scrollbar {
             width: 10px;
             height: 10px;
@@ -53,18 +52,18 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
-        /* Custom row highlights based on status */
+        /* 상태별 행 강조 컬러 */
         .row-consult1 {
-            background-color: #f0fdfa !important; /* Soft Teal */
+            background-color: #f0fdfa !important; /* 민트색 */
         }
         .row-consult2 {
-            background-color: #f0f9ff !important; /* Soft Blue */
+            background-color: #f0f9ff !important; /* 파란색 */
         }
         .row-consult-deep {
-            background-color: #fcf5ff !important; /* Soft Purple */
+            background-color: #fcf5ff !important; /* 보라색 */
         }
         
-        /* New Registered Flash Animation */
+        /* 신규 등록 데이터 반짝임 애니메이션 */
         @keyframes row-flash-anim {
             0% { background-color: #bbf7d0 !important; }
             100% { background-color: transparent; }
@@ -76,7 +75,7 @@
 </head>
 <body class="min-h-screen flex flex-col text-slate-800 antialiased">
 
-    <!-- Top Navigation Header -->
+    <!-- 왼쪽최상단 제목 -->
     <header class="bg-brand-700 text-white shadow-md px-6 py-5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40">
         <div class="flex items-center gap-4">
             <div class="bg-white text-brand-700 p-2.5 rounded-lg font-black text-xl tracking-wider shadow-inner">
@@ -93,7 +92,7 @@
         
         <div class="flex items-center gap-3">
                      
-            <!-- Quick Notice View Button -->
+            <!-- 오른쪽최상단 공지사항 -->
             <button onclick="openNotice(true)" class="bg-indigo-600 hover:bg-indigo-500 text-sm font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 shadow-sm">
                 <i class="fa-solid fa-bullhorn text-amber-300 text-base"></i>
                 <span>공지사항</span>
@@ -101,10 +100,10 @@
         </div>
     </header>
 
-    <!-- Main Workspace Container (Using max-w-full and smaller padding to maximize layout width) -->
+    <!-- 메인 작업 영역 컨테이너 (레이아웃 너비를 최대화하기 위해 max-w-full을 사용하고 여백을 줄임) -->
     <main class="flex-grow p-2 grid grid-cols-12 gap-4 w-full">
         
-        <!-- Left: Quick Registration Card -->
+        <!-- 왼쪽 방문고객 -->
         <section class="col-span-3">
             <div class="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
                 <div class="w-10 h-10 rounded-lg bg-indigo-500 text-white flex items-center justify-center shadow-md">
@@ -116,7 +115,7 @@
                 </div>
             </div>
 
-            <!-- Input Fields Grid (Upgraded input size and text size) -->
+            <!-- 입력창 드롭다운 명단 -->
             <form id="regForm" onsubmit="event.preventDefault(); handleFormSubmit();" class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -196,13 +195,13 @@
             </form>
         </section>
 
-        <!-- Right: Filter Toolbar & Customer DB Grid -->
+        <!-- 고객정보 필터링 / 검색필터링 -->
         <section class="col-span-9 flex flex-col gap-4">
             
-            <!-- Advanced Toolbar (Enlarged elements) -->
+            <!-- 드롭다운필터링 -->
             <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col gap-4">
                 
-                <!-- Search row -->
+                <!-- 검색창 -->
                 <div class="relative w-full">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400">
                         <i class="fa-solid fa-magnifying-glass text-base"></i>
