@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ga-visitor-v1';
+const CACHE_NAME = 'ga-visitor-v2';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
