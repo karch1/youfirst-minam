@@ -226,8 +226,8 @@
                     <div>
                         <label class="block text-xs uppercase font-black text-slate-500 mb-1">날짜 정렬기준</label>
                         <select id="sortDate" onchange="applySorting('date', this.value)" class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
-                            <option value="desc">최신 방문순</option>
-                            <option value="asc" selected>과거 방문순</option>
+                            <option value="desc" selected>최신 방문순</option>
+                            <option value="asc">과거 방문순</option>
                         </select>
                     </div>
 
@@ -671,11 +671,12 @@
         renderTable();
     }
 
-    // 기본 정렬 처리 (과거 방문일 순 정렬)
+    // 기본 정렬 처리 (과거 방문일 순 정렬) -> 최신순으로 정렬 6/9일
     function sortDataByDefault() {
-        customerData.sort((a, b) => new Date(a.date) - new Date(b.date));
-        const dateSelect = document.getElementById('sortDate');
-        if (dateSelect) dateSelect.value = 'asc';
+    customerData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const dateSelect = document.getElementById('sortDate');
+    if (dateSelect) dateSelect.value = 'desc';
     }
 
 // [페이징 전역 상태 변수] - 기존에 선언해둔 곳이 없다면 이 자리에 그대로 두세요.
