@@ -35,7 +35,7 @@
             font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
             background-color: #f8fafc;
             font-size: 24px; /* 기본 글자크기 */
-        }
+            }
         /* 스크롤바 디자인 커스텀 */
         ::-webkit-scrollbar {
             width: 10px;
@@ -60,6 +60,15 @@
         }
         .row-consult-deep {
             background-color: #fcf5ff !important; /* 보라색 */
+        }
+        .row-contract {
+            background: linear-gradient(
+            90deg,
+            #fff7cc 0%,
+            #ffe066 50%,
+            #ffd43b 100%
+            ) !important;
+            border-left: 8px solid #f59f00;
         }
         
         /* 신규 등록 데이터 반짝임 애니메이션 */
@@ -169,6 +178,7 @@
                             <option value="개인상담 1차">개인상담 1차</option>
                             <option value="2차상담">2차상담</option>
                             <option value="개인상담 2차">개인상담 2차</option>
+                            <option value="계약자">계약자</option>
                             <option value="단순문의">단순문의</option>
                         </select>
                     </div>
@@ -212,6 +222,7 @@
                             <option value="개인상담 1차">개인상담 1차</option>
                             <option value="2차상담">2차상담</option>
                             <option value="개인상담 2차">개인상담 2차</option>
+                            <option value="계약자">계약자</option>
                             <option value="단순문의">단순문의</option>
                         </select>
                     </div>
@@ -515,7 +526,7 @@
     let lastInsertedId = null; 
     let confirmCallback = null;
 
-    const statuses = ['1차상담', '개인상담 1차', '2차상담', '개인상담 2차', '단순문의'];
+    const statuses = ['1차상담', '개인상담 1차', '2차상담', '개인상담 2차','계약자','단순문의'];
 
     // 입력 포맷 자동 변환 핸들러 (생년월일)
     window.autoFormatBirth = function(input) {
@@ -729,6 +740,7 @@ window.renderTable = function() {
         if (item.status === '1차상담') tr.classList.add('row-consult1');
         else if (item.status === '2차상담') tr.classList.add('row-consult2');
         else if (item.status === '개인상담 2차') tr.classList.add('row-consult-deep');
+        else if (item.status === '계약자') tr.classList.add('row-contract');
 
         if (lastInsertedId && item.id === lastInsertedId) {
             tr.classList.add('row-flash');
@@ -740,10 +752,16 @@ window.renderTable = function() {
         else if (item.status === '2차상담') badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
         else if (item.status === '개인상담 2차') badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
         else if (item.status === '단순문의') badgeColor = "bg-slate-200 text-slate-800 border-slate-300";
+        else if (item.status === '계약자') badgeColor = "bg-yellow-300 text-yellow-950 border-yellow-500";
 
         tr.innerHTML = `
             <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.date || '-'}</td>
-            <td class="p-4 text-[22px] font-black text-slate-700 whitespace-nowrap">${item.agent || '-'}</td>
+            <td class="p-4 text-[22px] font-black text-slate-700 whitespace-nowrap">
+                ${ item.status === '계약자'
+                  ? `<i class="fa-solid fa-crown text-yellow-500 mr-1"></i>${item.agent}`
+                    : item.agent
+                }
+            </td>
             <td class="p-4 text-[22px] font-black text-slate-900 whitespace-nowrap">${item.name || '-'} <span class="text-[16px] text-slate-500 font-bold ml-1">${item.gender || ''}</span></td>
             <td class="p-4 text-[22px] text-slate-600 whitespace-nowrap font-mono font-bold">${item.birth || '-'}</td>
             <td class="p-4 text-[22px] text-slate-700 whitespace-nowrap font-mono font-bold">${item.phone || '-'}</td>
