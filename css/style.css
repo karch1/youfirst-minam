@@ -1,0 +1,48 @@
+ body {
+            font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: #f8fafc;
+            font-size: 24px; /* 기본 글자크기 */
+            }
+        /* 스크롤바 디자인 커스텀 */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* 상태별 행 강조 컬러 */
+        .row-consult1 {
+            background-color: #f0fdfa !important; /* 민트색 */
+        }
+        .row-consult2 {
+            background-color: #f0f9ff !important; /* 파란색 */
+        }
+        .row-consult-deep {
+            background-color: #fcf5ff !important; /* 보라색 */
+        }
+        .row-contract {
+            background: linear-gradient(
+            90deg,
+            #fff7cc 0%,
+            #ffe066 50%,
+            #ffd43b 100%
+            ) !important;
+            border-left: 8px solid #f59f00;
+        }
+        
+        /* 신규 등록 데이터 반짝임 애니메이션 */
+        @keyframes row-flash-anim {
+            0% { background-color: #bbf7d0 !important; }
+            100% { background-color: transparent; }
+        }
+        .row-flash {
+            animation: row-flash-anim 3s ease-out;
+        }
