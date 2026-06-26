@@ -1,0 +1,703 @@
+ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } 
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 애플리케이션 상태 관리 변수
+    let customerData = [];
+    let isFirebaseMode = false;
+    let db = null;
+    let auth = null;
+    let unsubscribe = null;
+    let activeEditId = null; 
+    let selectedEditStatus = '';
+    let lastInsertedId = null; 
+    let confirmCallback = null;
+
+    const statuses = ['1차상담', '개인상담 1차', '2차상담', '개인상담 2차','계약자','단순문의'];
+
+    // 입력 포맷 자동 변환 핸들러 (생년월일)
+    window.autoFormatBirth = function(input) {
+        let val = input.value.replace(/[^0-9]/g, '');
+        if (val.length > 4 && val.length <= 6) {
+            input.value = val.slice(0, 4) + '-' + val.slice(4);
+        } else if (val.length > 6) {
+            input.value = val.slice(0, 4) + '-' + val.slice(4, 6) + '-' + val.slice(6, 8);
+        } else {
+            input.value = val;
+        }
+    }
+
+    // 입력 포맷 자동 변환 핸들러 (전화번호)
+    window.autoFormatPhone = function(input) {
+        let val = input.value.replace(/[^0-9]/g, '');
+        if (val.length > 3 && val.length <= 7) {
+            input.value = val.slice(0, 3) + '-' + val.slice(3);
+        } else if (val.length > 7) {
+            if (val.length === 11) {
+                input.value = val.slice(0, 3) + '-' + val.slice(3, 7) + '-' + val.slice(7);
+            } else {
+                input.value = val.slice(0, 3) + '-' + val.slice(3, 6) + '-' + val.slice(6);
+            }
+        } else {
+            input.value = val;
+        }
+    }
+
+   // 데이터베이스 연결 및 초기화 (다른 PC 무한 리다이렉트 완벽 해결 팝업 모드)
+    async function initDatabase() {
+        const firebaseConfig = {
+          apiKey: "AIzaSyBEuvbR1_Kgvbaf9ep71wDisRyld0iJMpU",
+          authDomain: "yfminam-b2402.firebaseapp.com",
+          projectId: "yfminam-b2402",
+          storageBucket: "yfminam-b2402.firebasestorage.app",
+          messagingSenderId: "728416151139",
+          appId: "1:728416151139:web:e271761416e8d69920ba56"
+        };
+
+        if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
+            enableLocalFallback();
+            return;
+        }
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            
+            // 1. 이미 로그인되어 있는 세션이 있는지 먼저 확인
+            let user = auth.currentUser;
+
+            // 2. 만약 세션이 없다면 잠시 대기하며 인증 상태 변화를 관찰
+            if (!user) {
+                user = await new Promise((resolve) => {
+                    const unsubscribeAuth = auth.onAuthStateChanged((u) => {
+                        unsubscribeAuth(); // 일회성으로 확인 후 해제
+                        resolve(u);
+                    });
+                });
+            }
+
+            // 3. 다른 PC/시크릿 창이라서 아예 처음 들어온 상태라면 팝업 로그인 구동
+            if (!user) {
+                // 커스텀 토큰이 제공된 특수 환경인지 먼저 체크
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    try {
+                        const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                        user = userCredential.user;
+                    } catch(e) {
+                        console.error("커스텀 토큰 로그인 실패:", e);
+                    }
+                }
+                
+                // 진짜 로그인이 필요한 상태면 팝업 창을 띄웁니다 (무한 새로고침 차단)
+                if (!user) {
+                    const { signInWithPopup } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+                    const provider = new GoogleAuthProvider();
+                    provider.setCustomParameters({ prompt: 'select_account' }); 
+                    
+                    showToast("관리자 인증이 필요합니다. 구글 로그인을 진행해 주세요.", "info");
+                    try {
+                        const result = await signInWithPopup(auth, provider);
+                        user = result.user;
+                    } catch (popupErr) {
+                        console.error("팝업 로그인 취소 또는 실패:", popupErr);
+                        showToast("로그인이 취소되었습니다. 로컬 모드로 진입합니다.", "error");
+                        enableLocalFallback();
+                        return;
+                    }
+                }
+            }
+
+            // 4. 로그인한 유저 이메일 권한 검증 (yfminam@gmail.com 계정만 허용)
+            if (user && user.email !== 'yfminam@gmail.com') {
+                showToast("권한이 없는 계정입니다. 관리자 계정으로 로그인해주세요.", "error");
+                await auth.signOut();
+                enableLocalFallback();
+                return; 
+            }
+
+            // 5. 관리자 인증 완료 시 Firestore 및 오프라인 캐시 레이어 로드
+            db = initializeFirestore(app, {
+                localCache: persistentLocalCache({
+                    tabManager: persistentMultipleTabManager()
+                })
+            });
+
+            console.log("Firebase 오프라인 지속성 모드로 로그인 및 DB 초기화 완료!");
+            isFirebaseMode = true;
+            
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+            const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
+
+            if (unsubscribe) unsubscribe();
+
+            // 실시간 대장 리스너 바인딩
+            unsubscribe = onSnapshot(collectionRef, (snapshot) => {
+                customerData = [];
+                snapshot.forEach((docSnap) => {
+                    customerData.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                
+                sortDataByDefault();
+                updateAgentFilterDropdown();
+                renderTable();
+            }, (error) => {
+                console.error("Firestore 로딩 에러, 로컬 스토리지 모드로 전환합니다:", error);
+                enableLocalFallback();
+            });
+
+        } catch (err) {
+            console.error("Firebase 초기화 실패, 로컬 스토리지 모드로 전환합니다:", err);
+            enableLocalFallback();
+        }
+    }
+    // 로컬 스토리지 데이터 로드
+    function enableLocalFallback() {
+        isFirebaseMode = false;
+        const savedData = localStorage.getItem('local_customer_db_v2');
+        if (savedData) {
+            try {
+                customerData = JSON.parse(savedData);
+            } catch (e) {
+                customerData = [];
+            }
+        } else {
+            customerData = [];
+            localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
+        }
+        sortDataByDefault();
+        updateAgentFilterDropdown();
+        renderTable();
+    }
+
+    // 기본 정렬 처리 (과거 방문일 순 정렬) -> 최신순으로 정렬 6/9일
+    function sortDataByDefault() {
+    customerData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const dateSelect = document.getElementById('sortDate');
+    if (dateSelect) dateSelect.value = 'desc';
+    }
+
+// [페이징 전역 상태 변수] - 기존에 선언해둔 곳이 없다면 이 자리에 그대로 두세요.
+let currentPage = 1;      // 현재 페이지
+const rowsPerPage = 50;   // 한 페이지에 보여줄 행 개수
+
+// 데이터 테이블 렌더러 (화면 표시)
+window.renderTable = function() {
+    const tbody = document.getElementById('dbTableBody');
+    if (!tbody) return;
+
+    const searchInput = document.getElementById('tableSearch');
+    const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    
+    const filterStatSelect = document.getElementById('filterStatus');
+    const filterStat = filterStatSelect ? filterStatSelect.value : 'ALL';
+    
+    const filterAgSelect = document.getElementById('filterAgent');
+    const filterAg = filterAgSelect ? filterAgSelect.value : 'ALL';
+    
+    tbody.innerHTML = '';
+
+    // 1. 조건 필터링 검사 후 결과 배열 따로 추출
+    const filteredData = customerData.filter((item) => {
+        if (searchVal) {
+            const stringified = `${item.date} ${item.agent} ${item.name} ${item.phone} ${item.address} ${item.job} ${item.memo} ${item.status}`.toLowerCase();
+            if (!stringified.includes(searchVal)) return false;
+        }
+        if (filterStat !== 'ALL' && item.status !== filterStat) return false;
+        if (filterAg !== 'ALL' && item.agent !== filterAg) return false;
+        return true;
+    });
+
+    // 2. 페이징 데이터 컷팅(Slice) 계산
+    const totalRows = filteredData.length;
+    const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
+
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    const pageData = filteredData.slice(startIndex, endIndex);
+
+    // 3. 현재 페이지 데이터만 화면에 생성
+    pageData.forEach((item) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors group";
+        
+        if (item.status === '1차상담') tr.classList.add('row-consult1');
+        else if (item.status === '2차상담') tr.classList.add('row-consult2');
+        else if (item.status === '개인상담 2차') tr.classList.add('row-consult-deep');
+        else if (item.status === '계약자') tr.classList.add('row-contract');
+
+        if (lastInsertedId && item.id === lastInsertedId) {
+            tr.classList.add('row-flash');
+        }
+
+        let badgeColor = "bg-slate-100 text-slate-700 border-slate-200";
+        if (item.status === '1차상담') badgeColor = "bg-indigo-100 text-indigo-800 border-indigo-200";
+        else if (item.status === '개인상담 1차') badgeColor = "bg-cyan-100 text-cyan-800 border-cyan-200";
+        else if (item.status === '2차상담') badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
+        else if (item.status === '개인상담 2차') badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
+        else if (item.status === '단순문의') badgeColor = "bg-slate-200 text-slate-800 border-slate-300";
+        else if (item.status === '계약자') badgeColor = "bg-yellow-300 text-yellow-950 border-yellow-500";
+
+        tr.innerHTML = `
+            <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.date || '-'}</td>
+            <td class="p-4 text-[22px] font-black text-slate-700 whitespace-nowrap">
+                ${ item.status === '계약자'
+                  ? `<i class="fa-solid fa-crown text-yellow-500 mr-1"></i>${item.agent}`
+                    : item.agent
+                }
+            </td>
+            <td class="p-4 text-[22px] font-black text-slate-900 whitespace-nowrap">${item.name || '-'} <span class="text-[16px] text-slate-500 font-bold ml-1">${item.gender || ''}</span></td>
+            <td class="p-4 text-[22px] text-slate-600 whitespace-nowrap font-mono font-bold">${item.birth || '-'}</td>
+            <td class="p-4 text-[22px] text-slate-700 whitespace-nowrap font-mono font-bold">${item.phone || '-'}</td>
+            <td class="p-4 text-[22px] text-slate-500 max-w-[200px] truncate font-medium" title="${item.address || ''}">${item.address || '-'}</td>
+            <td class="p-4 text-[22px] text-slate-500 whitespace-nowrap font-medium">${item.job || '-'}</td>
+            <td class="p-4 text-[22px] text-slate-700 max-w-[450px] truncate cursor-pointer font-bold hover:text-indigo-600 transition-colors" onclick="openEditModal('${item.id}')" title="클릭하여 수정하기">
+                <i class="fa-regular fa-comment-dots text-slate-400 mr-1.5 text-[20px]"></i> ${item.memo || '<span class="text-slate-300 italic font-normal">상담 기록 없음</span>'}
+            </td>
+            <td class="p-4 whitespace-nowrap">
+                <button onclick="openEditModal('${item.id}')" class="px-4 py-2 rounded-full text-[20px] font-black border ${badgeColor} transition-all hover:scale-105 shadow-sm">
+                    ${item.status}
+                </button>
+            </td>
+            <td class="p-4 text-center whitespace-nowrap">
+                <div class="flex items-center justify-center gap-3">
+                    <button onclick="openEditModal('${item.id}')" class="text-slate-400 hover:text-indigo-600 transition-colors p-1" title="상세 정보 수정">
+                        <i class="fa-regular fa-pen-to-square text-[22px]"></i>
+                    </button>
+                    <button onclick="deleteRow('${item.id}')" class="text-slate-400 hover:text-rose-600 transition-colors p-1" title="정보 삭제">
+                        <i class="fa-regular fa-trash-can text-[22px]"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // [여기가 올바른 위치!] 원하셨던 문구 그대로 적용했습니다.
+    const summaryEl = document.getElementById('tableSummary');
+    if (summaryEl) {
+        summaryEl.innerText = `총 ${totalRows}명의 방문 데이터가 조회되었습니다.`;
+    }
+
+    // 4. 하단 버튼 컨트롤러 출력 함수 호출
+    renderPaginationControls(totalPages);
+} 
+
+// 하단 페이징 버튼 UI 동적 생성 함수
+function renderPaginationControls(totalPages) {
+    const container = document.getElementById('paginationContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const btnBase = "px-5 py-2.5 border rounded-xl text-[20px] font-black transition-all shadow-sm flex items-center justify-center ";
+    
+    // [이전] 버튼
+    const prevBtn = document.createElement('button');
+    prevBtn.className = btnBase + (currentPage === 1 ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 active:scale-95");
+    prevBtn.innerHTML = '<i class="fa-solid fa-angle-left mr-1"></i> 이전';
+    prevBtn.disabled = currentPage === 1;
+    prevBtn.onclick = () => { currentPage--; renderTable(); };
+    container.appendChild(prevBtn);
+
+    // 숫자 번호 버튼들
+    for (let i = 1; i <= totalPages; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.className = btnBase + (currentPage === i ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50");
+        pageBtn.innerText = i;
+        pageBtn.onclick = () => { currentPage = i; renderTable(); };
+        container.appendChild(pageBtn);
+    }
+
+    // [다음] 버튼
+    const nextBtn = document.createElement('button');
+    nextBtn.className = btnBase + (currentPage === totalPages ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 active:scale-95");
+    nextBtn.innerHTML = '다음 <i class="fa-solid fa-angle-right ml-1"></i>';
+    nextBtn.disabled = currentPage === totalPages;
+    nextBtn.onclick = () => { currentPage++; renderTable(); };
+    container.appendChild(nextBtn);
+} 
+
+    // 담당 설계사 목록 드롭다운 동적 업데이트
+    window.updateAgentFilterDropdown = function() {
+        const dropdown = document.getElementById('filterAgent');
+        if (!dropdown) return;
+        const savedSelection = dropdown.value;
+        dropdown.innerHTML = '<option value="ALL">전체 담당자</option>';
+
+        const assignedAgents = ["오계화", "김영순", "이승신", "홍성미", "제세영", "김미소", "장우식", "박승환"];
+        assignedAgents.forEach(agent => {
+            const opt = document.createElement('option');
+            opt.value = agent;
+            opt.innerText = agent;
+            dropdown.appendChild(opt);
+        });
+
+        if (assignedAgents.includes(savedSelection)) {
+            dropdown.value = savedSelection;
+        } else {
+            dropdown.value = 'ALL';
+        }
+    }
+
+    // 하이브리드 다중 정렬 구현 로직
+    window.applySorting = function(primaryField, direction) {
+        const sortDateDir = document.getElementById('sortDate').value;
+        const sortAgentDir = document.getElementById('sortAgent').value;
+
+        customerData.sort((a, b) => {
+            let dateCompare = 0;
+            if (a.date && b.date) {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                dateCompare = sortDateDir === 'asc' ? dateA - dateB : dateB - dateA;
+            }
+
+            let agentCompare = 0;
+            if (sortAgentDir !== 'NONE' && a.agent && b.agent) {
+                agentCompare = sortAgentDir === 'asc' ? a.agent.localeCompare(b.agent, 'ko') : b.agent.localeCompare(a.agent, 'ko');
+            }
+
+            if (primaryField === 'agent' && sortAgentDir !== 'NONE') {
+                if (agentCompare !== 0) return agentCompare;
+                return dateCompare;
+            } else {
+                if (dateCompare !== 0) return dateCompare;
+                return agentCompare;
+            }
+        });
+
+        renderTable();
+    }
+
+    // 신규 방문 고객 정보 등록 처리
+    window.handleFormSubmit = async function() {
+        const date = document.getElementById('regDate').value;
+        const agent = document.getElementById('regAgent').value;
+        const name = document.getElementById('regName').value.trim();
+        const birth = document.getElementById('regBirth').value.trim();
+        const phone = document.getElementById('regPhone').value.trim();
+        const gender = document.getElementById('regGender').value;
+        const job = document.getElementById('regJob').value.trim();
+        const status = document.getElementById('regStatus').value;
+        const address = document.getElementById('regAddress').value.trim();
+        const memo = document.getElementById('regMemo').value.trim();
+
+        if (!agent) { showToast("담당 설계사를 지정해야 합니다.", "error"); return; }
+        if (!name) { showToast("고객 이름을 입력해야 합니다.", "error"); return; }
+        if (!phone) { showToast("전화번호를 입력해야 합니다.", "error"); return; }
+
+        // 🚨 [전화번호 중복 검사 로직 추가]
+        // 하이픈(-)이나 공백을 전부 지우고 오직 "숫자"만 추출해서 비교합니다.
+        const inputNum = phone.replace(/[^0-9]/g, '');
+        
+        const duplicateUser = customerData.find(customer => {
+            const existingNum = (customer.phone || '').replace(/[^0-9]/g, '');
+            return existingNum === inputNum && inputNum !== '';
+        });
+
+        // 대장에 이미 똑같은 번호가 존재한다면 저장 프로세스를 중단시킵니다.
+        if (duplicateUser) {
+            showToast(`이미 등록된 전화번호입니다. (기존 등록자: ${duplicateUser.name})`, "error");
+            return; 
+        }
+
+        const tempId = 'local-' + Date.now();
+        const newRecord = {
+            date, agent, name, birth, phone, gender, job, status, address, memo,
+            createdAt: new Date().toISOString()
+        };
+
+        lastInsertedId = tempId;
+
+        if (isFirebaseMode && db) {
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+                const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
+                const docRef = await addDoc(collectionRef, newRecord);
+                lastInsertedId = docRef.id;
+                showToast("성공적으로 클라우드 DB에 동기화되었습니다.", "success");
+            } catch (e) {
+                showToast("동기화 오류가 발생했습니다. 로컬 디스크에 임시 보관합니다.", "error");
+                saveToLocalFallback(Object.assign({ id: tempId }, newRecord));
+            }
+        } else {
+            saveToLocalFallback(Object.assign({ id: tempId }, newRecord));
+            showToast("로컬 대장에 안전하게 등록되었습니다.", "success");
+        }
+
+        // 폼 필드 초기화
+        document.getElementById('regName').value = '';
+        document.getElementById('regPhone').value = '';
+        document.getElementById('regBirth').value = '';
+        document.getElementById('regMemo').value = '';
+        document.getElementById('regAddress').value = '';
+        document.getElementById('regJob').value = '';
+        document.getElementById('regAgent').value = '';
+        
+        setDefaultRegDate();
+    }
+
+    // 오프라인 로컬 백업 스토리지 데이터 저장 처리
+    function saveToLocalFallback(newObj) {
+        if (!customerData.some(item => item.id === newObj.id)) {
+            customerData.push(newObj); 
+        }
+        sortDataByDefault();
+        localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
+        updateAgentFilterDropdown();
+        renderTable();
+    }
+
+    // 정보 수정 모달 창 열기
+    window.openEditModal = function(id) {
+        const item = customerData.find(c => c.id === id);
+        if (!item) return;
+
+        activeEditId = id; 
+
+        document.getElementById('editModalHeader').innerHTML = `<span class="text-indigo-300 font-black">${item.name}</span> 고객님 (${item.agent} 설계사 담당) - 상세 정보 관리`;
+        
+        document.getElementById('editDate').value = item.date || '';
+        document.getElementById('editAgent').value = item.agent || '';
+        document.getElementById('editName').value = item.name || '';
+        document.getElementById('editBirth').value = item.birth || '';
+        document.getElementById('editPhone').value = item.phone || '';
+        document.getElementById('editGender').value = item.gender || '여';
+        document.getElementById('editJob').value = item.job || '';
+        document.getElementById('editAddress').value = item.address || '';
+        document.getElementById('editModalMemo').value = item.memo || '';
+        selectedEditStatus = item.status || '1차상담';
+
+        const gridContainer = document.getElementById('statusGridOptions');
+        if (gridContainer) {
+            gridContainer.innerHTML = '';
+            statuses.forEach(st => {
+                const btn = document.createElement('button');
+                btn.type = "button";
+                btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none";
+                btn.innerText = st;
+
+                if (st === selectedEditStatus) {
+                    btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600', 'shadow-sm');
+                } else {
+                    btn.classList.add('bg-slate-50', 'text-slate-600', 'border-slate-200', 'hover:bg-slate-100');
+                }
+
+                btn.onclick = () => {
+                    selectedEditStatus = st;
+                    Array.from(gridContainer.children).forEach(child => {
+                        child.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100";
+                    });
+                    btn.className = "p-3 text-sm font-extrabold text-center border rounded-xl transition-all outline-none bg-indigo-600 text-white border-indigo-600 shadow-sm";
+                };
+                gridContainer.appendChild(btn);
+            });
+        }
+
+        document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    // 정보 수정 모달 창 닫기
+    window.closeEditModal = function() {
+        document.getElementById('editModal').classList.add('hidden');
+        activeEditId = null;
+    }
+
+   // 수정 완료 사항 최종 저장 처리
+window.saveChanges = async function() {
+    if (activeEditId === null) return;
+    
+    const target = customerData.find(c => c.id === activeEditId);
+    if (!target) return;
+
+    // 1. 입력된 전화번호 가져오기 및 숫자만 추출
+    const inputPhone = document.getElementById('editPhone').value.trim();
+    const cleanInputPhone = inputPhone.replace(/[^0-9]/g, '');
+
+    // [추가된 로직] 수정 시 전화번호 중복 검사
+    if (cleanInputPhone !== '') {
+        const duplicateUser = customerData.find(customer => {
+            const cleanExistingPhone = (customer.phone || '').replace(/[^0-9]/g, '');
+            // 다른 사람 중에서 번호가 같은 사람이 있는지 검사 (나 자신은 제외)
+            return cleanExistingPhone === cleanInputPhone && customer.id !== activeEditId;
+        });
+
+        if (duplicateUser) {
+            // 다른 고객과 번호가 겹치면 경고를 띄우고 저장을 중단합니다.
+            showToast(`이미 등록된 전화번호입니다. (기존 등록자: ${duplicateUser.name} / 담당: ${duplicateUser.agent}설계사)`, "error");
+            return; // 함수를 여기서 종료하여 Firebase나 로컬에 저장되지 않도록 막음
+        }
+    }
+
+    // 2. 중복 검사를 통과하면 기존대로 데이터 객체 생성 및 저장 진행
+    const updatedDataObj = {
+        date: document.getElementById('editDate').value,
+        agent: document.getElementById('editAgent').value.trim(),
+        name: document.getElementById('editName').value.trim(),
+        birth: document.getElementById('editBirth').value.trim(),
+        phone: inputPhone, // 원본 포맷으로 저장
+        gender: document.getElementById('editGender').value,
+        job: document.getElementById('editJob').value.trim(),
+        address: document.getElementById('editAddress').value.trim(),
+        memo: document.getElementById('editModalMemo').value.trim(),
+        status: selectedEditStatus
+    };
+
+    if (isFirebaseMode && db && !target.id.startsWith('local-')) {
+        try {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'visitors', target.id);
+            await updateDoc(docRef, updatedDataObj);
+            showToast("변경 사항이 실시간 저장되었습니다.", "success");
+        } catch (e) {
+            showToast("변경 실시간 동기화에 실패하여 로컬 버퍼에 보관합니다.", "error");
+            updateLocalDataDirectly(updatedDataObj);
+        }
+    } else {
+        updateLocalDataDirectly(updatedDataObj);
+        showToast("변경 내역이 보관되었습니다.", "success");
+    }
+
+    closeEditModal();
+}
+
+    // 로컬 스토리지 내 데이터 직접 수정 업데이트 처리
+    function updateLocalDataDirectly(updatedObj) {
+        const idx = customerData.findIndex(c => c.id === activeEditId);
+        if (idx !== -1) {
+            Object.assign(customerData[idx], updatedObj);
+            localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
+            renderTable();
+        }
+    }
+
+    // 화면 UI 알림 토스트 메시지 띄우기
+    window.showToast = function(message, type = "success") {
+        const toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) return;
+        
+        const toast = document.createElement('div');
+        toast.className = `flex items-center gap-3 px-5 py-4 rounded-xl shadow-lg border text-sm font-black transition-all duration-300 translate-y-2 opacity-0 shrink-0 ${
+            type === 'success' 
+            ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
+            : type === 'error'
+            ? 'bg-rose-50 border-rose-100 text-rose-800'
+            : 'bg-amber-50 border-amber-100 text-amber-800'
+        }`;
+        
+        const icon = type === 'success' 
+            ? '<i class="fa-solid fa-circle-check text-lg"></i>' 
+            : type === 'error' 
+            ? '<i class="fa-solid fa-circle-exclamation text-lg"></i>' 
+            : '<i class="fa-solid fa-triangle-exclamation text-lg"></i>';
+
+        toast.innerHTML = `${icon} <span>${message}</span>`;
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.remove('translate-y-2', 'opacity-0');
+        }, 10);
+
+        setTimeout(() => {
+            toast.classList.add('translate-y-2', 'opacity-0');
+            setTimeout(() => {
+                toast.remove();
+            }, 300);
+        }, 3000);
+    }
+
+    // 커스텀 안전 확인 모달 열기
+    window.openConfirmModal = function(text, successAction) {
+        document.getElementById('confirmModalText').innerText = text;
+        document.getElementById('confirmModal').classList.remove('hidden');
+        confirmCallback = successAction;
+    }
+
+    // 커스텀 안전 확인 모달 닫기 및 콜백 실행
+    window.closeConfirmModal = function(execute = false) {
+        document.getElementById('confirmModal').classList.add('hidden');
+        if (execute && confirmCallback) {
+            confirmCallback();
+        }
+        confirmCallback = null;
+    }
+
+    // DOMContentLoaded 시점에 확인 모달 액션 버튼 바인딩 추가
+    window.addEventListener('DOMContentLoaded', () => {
+        const confirmBtn = document.getElementById('confirmModalActionBtn');
+        if (confirmBtn) {
+            confirmBtn.onclick = () => {
+                closeConfirmModal(true);
+            };
+        }
+        setDefaultRegDate();
+        initDatabase();
+        openNotice();
+    });
+
+    // 데이터 행 기록 삭제 기능
+    window.deleteRow = function(id) {
+        const target = customerData.find(c => c.id === id);
+        if (!target) return;
+
+        window.openConfirmModal(`[확인] ${target.name} 고객님의 방문 기록을 영구 삭제하시겠습니까?`, async () => {
+            if (isFirebaseMode && db && !target.id.startsWith('local-')) {
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'visitors', target.id);
+                    await deleteDoc(docRef);
+                    showToast("클라우드 DB에서 완벽하게 파기되었습니다.", "success");
+                } catch (e) {
+                    showToast("데이터 삭제에 실패했습니다.", "error");
+                }
+            } else {
+                customerData = customerData.filter(c => c.id !== id);
+                localStorage.setItem('local_customer_db_v2', JSON.stringify(customerData));
+                updateAgentFilterDropdown();
+                renderTable();
+                showToast("대장에서 완벽하게 삭제되었습니다.", "success");
+            }
+        });
+    }
+
+    // 공지사항 모달 열기 제어
+    window.openNotice = function(force = false) {
+        const isHiddenToday = localStorage.getItem('hide_notice_today_v2');
+        const expiry = localStorage.getItem('hide_notice_expiry_v2');
+        const now = new Date().getTime();
+
+        if (force || !isHiddenToday || (expiry && now > expiry)) {
+            const noticeModal = document.getElementById('noticeModal');
+            if (noticeModal) noticeModal.classList.remove('hidden');
+        }
+    }
+
+    // 공지사항 모달 닫기
+    window.closeNotice = function() {
+        const checkbox = document.getElementById('hideNoticeCheck');
+        if (checkbox && checkbox.checked) {
+            const expiryTime = new Date().getTime() + (24 * 60 * 60 * 1000);
+            localStorage.setItem('hide_notice_today_v2', 'true');
+            localStorage.setItem('hide_notice_expiry_v2', expiryTime);
+        }
+        const noticeModal = document.getElementById('noticeModal');
+        if (noticeModal) noticeModal.classList.add('hidden');
+    }
+
+    // 기본 등록 날짜 설정 (오늘 날짜 자동 기입)
+    function setDefaultRegDate() {
+        const dateInput = document.getElementById('regDate');
+        if (dateInput) {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            let mm = today.getMonth() + 1;
+            let dd = today.getDate();
+            if (mm < 10) mm = '0' + mm;
+            if (dd < 10) dd = '0' + dd;
+            dateInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+    }
