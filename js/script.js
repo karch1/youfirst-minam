@@ -328,7 +328,7 @@ function renderPaginationControls(totalPages) {
         const savedSelection = dropdown.value;
         dropdown.innerHTML = '<option value="ALL">전체 담당자</option>';
 
-        const assignedAgents = ["오계화", "김영순", "이승신", "홍성미", "제세영", "김미소", "장우식", "박승환"];
+        const assignedAgents = ["오계화", "김영순", "이승신", "홍성미", "제세영", "김미소", "장우식", "박승환", "장유미", "김보영", "정미라"];
         assignedAgents.forEach(agent => {
             const opt = document.createElement('option');
             opt.value = agent;
