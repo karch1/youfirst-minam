@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="/youfirst-minam/manifest.json">
     <meta name="theme-color" content="#102a43">
     <title>GA 보험사 1층 방문고객 관리 시스템</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -32,9 +33,11 @@
 
     <link rel="stylesheet" href="./css/style.css">
 </head>
+
 <body class="min-h-screen flex flex-col text-slate-800 antialiased">
 
-    <header class="bg-brand-700 text-white shadow-md px-6 py-5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40">
+    <header
+        class="bg-brand-700 text-white shadow-md px-6 py-5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40">
         <div class="flex items-center gap-4">
             <div class="bg-white text-brand-700 p-2.5 rounded-lg font-black text-xl tracking-wider shadow-inner">
                 유퍼스트 <span class="text-indigo-600">미남지사</span>
@@ -47,18 +50,38 @@
                 </p>
             </div>
         </div>
-        
+
         <div class="flex items-center gap-3">
-                     
-            <button onclick="openNotice(true)" class="bg-indigo-600 hover:bg-indigo-500 text-sm font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 shadow-sm">
-                <i class="fa-solid fa-bullhorn text-amber-300 text-base"></i>
-                <span>공지사항</span>
-            </button>
-        </div>
+
+            <!-- 우측 버튼 그룹 -->
+            <div class="flex items-center gap-3">
+                <!-- 데이터 백업 버튼 -->
+                <button onclick="backupJsonData()"
+                    class="bg-emerald-600 hover:bg-emerald-500 text-sm font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 shadow-sm">
+                    <i class="fa-solid fa-download text-emerald-200 text-base"></i>
+                    <span>DB 백업</span>
+                </button>
+
+                <!-- 데이터 복원 버튼 (숨겨진 file input 트리거) -->
+                <button onclick="document.getElementById('restoreFileField').click()"
+                    class="bg-amber-600 hover:bg-amber-500 text-sm font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 shadow-sm">
+                    <i class="fa-solid fa-upload text-amber-200 text-base"></i>
+                    <span>DB 복원</span>
+                </button>
+                <!-- 파일 선택용 숨김 input -->
+                <input type="file" id="restoreFileField" accept=".json" class="hidden"
+                    onchange="restoreJsonData(event)">
+
+                <button onclick="openNotice(true)"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-sm font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 shadow-sm">
+                    <i class="fa-solid fa-bullhorn text-amber-300 text-base"></i>
+                    <span>공지사항</span>
+                </button>
+            </div>
     </header>
 
     <main class="flex-grow p-2 grid grid-cols-12 gap-4 w-full">
-        
+
         <section class="col-span-3">
             <div class="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
                 <div class="w-10 h-10 rounded-lg bg-indigo-500 text-white flex items-center justify-center shadow-md">
@@ -70,15 +93,18 @@
                 </div>
             </div>
 
-            <form id="regForm" autocomplete="new-password" onsubmit="event.preventDefault(); handleFormSubmit();" class="space-y-4">
+            <form id="regForm" autocomplete="new-password" onsubmit="event.preventDefault(); handleFormSubmit();"
+                class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-extrabold text-slate-700 mb-1.5">방문 날짜</label>
-                        <input type="date" id="regDate" required class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium">
+                        <input type="date" id="regDate" required
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium">
                     </div>
                     <div>
                         <label class="block text-sm font-extrabold text-slate-700 mb-1.5">담당 설계사</label>
-                        <select id="regAgent" required class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-bold">
+                        <select id="regAgent" required
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-bold">
                             <option value="" disabled selected>선택하세요</option>
                             <option value="오계화">오계화</option>
                             <option value="김영순">김영순</option>
@@ -98,11 +124,13 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-extrabold text-slate-700 mb-1.5">고객 이름</label>
-                        <input type="text" id="regName" autocomplete="new-password" placeholder="실명 입력" required class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-bold">
+                        <input type="text" id="regName" autocomplete="new-password" placeholder="실명 입력" required
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-bold">
                     </div>
                     <div>
                         <label class="block text-sm font-extrabold text-slate-700 mb-1.5">성별</label>
-                        <select id="regGender" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-bold">
+                        <select id="regGender"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-bold">
                             <option value="여" selected>여성</option>
                             <option value="남">남성</option>
                         </select>
@@ -112,22 +140,28 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-extrabold text-slate-700 mb-1.5">생년월일 (8자리)</label>
-                        <input type="text" id="regBirth" autocomplete="new-password" placeholder="예) 19921021" maxlength="10" oninput="autoFormatBirth(this)" required class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-mono font-bold">
+                        <input type="text" id="regBirth" autocomplete="new-password" placeholder="예) 19921021"
+                            maxlength="10" oninput="autoFormatBirth(this)" required
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-mono font-bold">
                     </div>
                     <div>
                         <label class="block text-sm font-extrabold text-slate-700 mb-1.5">연락처 (숫자만)</label>
-                        <input type="text" id="regPhone" autocomplete="new-password" placeholder="예) 01011112222" maxlength="13" oninput="autoFormatPhone(this)" required class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-mono font-bold">
+                        <input type="text" id="regPhone" autocomplete="new-password" placeholder="예) 01011112222"
+                            maxlength="13" oninput="autoFormatPhone(this)" required
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-mono font-bold">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-extrabold text-slate-700 mb-1.5">직업</label>
-                        <input type="text" id="regJob" autocomplete="new-password" placeholder="예) 자영업, 회사원" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium">
+                        <input type="text" id="regJob" autocomplete="new-password" placeholder="예) 자영업, 회사원"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium">
                     </div>
                     <div>
                         <label class="block text-sm font-extrabold text-slate-700 mb-1.5">진행 현황</label>
-                        <select id="regStatus" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-bold text-indigo-900">
+                        <select id="regStatus"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-bold text-indigo-900">
                             <option value="1차상담" selected>1차상담</option>
                             <option value="개인상담 1차">개인상담 1차</option>
                             <option value="2차상담">2차상담</option>
@@ -140,15 +174,20 @@
 
                 <div>
                     <label class="block text-sm font-extrabold text-slate-700 mb-1.5">상세 주소</label>
-                    <input type="text" id="regAddress" autocomplete="new-password" placeholder="부산광역시 수영구 광안동..." required class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium">
+                    <input type="text" id="regAddress" autocomplete="new-password" placeholder="부산광역시 수영구 광안동..."
+                        required
+                        class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium">
                 </div>
 
                 <div>
                     <label class="block text-sm font-extrabold text-slate-700 mb-1.5">상담 및 방문 내용</label>
-                    <textarea id="regMemo" rows="4" autocomplete="new-password" placeholder="방문 용건 및 상담 상세 피드백 내용을 자유롭게 적어주세요..." class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none resize-none font-medium"></textarea>
+                    <textarea id="regMemo" rows="4" autocomplete="new-password"
+                        placeholder="방문 용건 및 상담 상세 피드백 내용을 자유롭게 적어주세요..."
+                        class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none resize-none font-medium"></textarea>
                 </div>
 
-                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base py-3.5 px-4 rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2">
+                <button type="submit"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base py-3.5 px-4 rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2">
                     <i class="fa-solid fa-floppy-disk text-lg"></i>
                     <span>방문고객 정보 전송 및 등록</span>
                 </button>
@@ -156,21 +195,24 @@
         </section>
 
         <section class="col-span-9 flex flex-col gap-4">
-            
+
             <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col gap-4">
-                
+
                 <div class="relative w-full">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400">
                         <i class="fa-solid fa-magnifying-glass text-base"></i>
                     </span>
-                    <input type="text" id="tableSearch" onkeyup="renderTable()" placeholder="고객 이름, 연락처, 담당 설계사, 상담 메모 등 대형 통합 검색..." class="w-full pl-11 pr-4 py-3 text-sm bg-slate-50 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium">
+                    <input type="text" id="tableSearch" onkeyup="renderTable()"
+                        placeholder="고객 이름, 연락처, 담당 설계사, 상담 메모 등 대형 통합 검색..."
+                        class="w-full pl-11 pr-4 py-3 text-sm bg-slate-50 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium">
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    
+
                     <div>
                         <label class="block text-xs uppercase font-black text-slate-500 mb-1">진행현황별 필터</label>
-                        <select id="filterStatus" onchange="renderTable()" class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
+                        <select id="filterStatus" onchange="renderTable()"
+                            class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
                             <option value="ALL">전체 현황보기</option>
                             <option value="1차상담">1차상담</option>
                             <option value="개인상담 1차">개인상담 1차</option>
@@ -183,14 +225,16 @@
 
                     <div>
                         <label class="block text-xs uppercase font-black text-slate-500 mb-1">담당 설계사별 필터</label>
-                        <select id="filterAgent" onchange="renderTable()" class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
+                        <select id="filterAgent" onchange="renderTable()"
+                            class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
                             <option value="ALL">전체 담당자</option>
                         </select>
                     </div>
 
                     <div>
                         <label class="block text-xs uppercase font-black text-slate-500 mb-1">날짜 정렬기준</label>
-                        <select id="sortDate" onchange="applySorting('date', this.value)" class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
+                        <select id="sortDate" onchange="applySorting('date', this.value)"
+                            class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
                             <option value="desc" selected>최신 방문순</option>
                             <option value="asc">과거 방문순</option>
                         </select>
@@ -198,7 +242,8 @@
 
                     <div>
                         <label class="block text-xs uppercase font-black text-slate-500 mb-1">설계사 정렬기준</label>
-                        <select id="sortAgent" onchange="applySorting('agent', this.value)" class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
+                        <select id="sortAgent" onchange="applySorting('agent', this.value)"
+                            class="w-full text-sm p-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
                             <option value="NONE">정렬 안함</option>
                             <option value="asc">이름 가나다순 ↑</option>
                             <option value="desc">이름 역순 ↓</option>
@@ -213,39 +258,55 @@
                     <table class="w-full border-collapse text-left min-w-[1280px] xl:min-w-[1380px]">
                         <thead>
                             <tr class="bg-brand-50 border-b-2 border-slate-200 sticky top-0 z-10">
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">방문일자</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">담당자</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">고객이름</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">생년월일</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">연락처</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">상세 주소</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">직업</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap w-[450px]">상담 및 방문 내용</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">진행 현황</th>
-                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap text-center">관리</th>
+                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">방문일자
+                                </th>
+                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">담당자
+                                </th>
+                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">고객이름
+                                </th>
+                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">생년월일
+                                </th>
+                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">연락처
+                                </th>
+                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">상세 주소
+                                </th>
+                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">직업
+                                </th>
+                                <th
+                                    class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap w-[450px]">
+                                    상담 및 방문 내용</th>
+                                <th class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap">진행 현황
+                                </th>
+                                <th
+                                    class="p-4 text-sm font-black text-brand-700 tracking-tight whitespace-nowrap text-center">
+                                    관리</th>
                             </tr>
                         </thead>
                         <tbody id="dbTableBody" class="divide-y-2 divide-slate-100">
-                            </tbody>
+                        </tbody>
                     </table>
                 </div>
-                
-                <div class="bg-slate-50 border-t border-slate-200 px-5 py-4 flex items-center justify-between text-sm text-slate-600 font-bold">
+
+                <div
+                    class="bg-slate-50 border-t border-slate-200 px-5 py-4 flex items-center justify-between text-sm text-slate-600 font-bold">
                     <span id="tableSummary">총 0명의 방문 데이터가 조회되었습니다.</span>
                     <div id="paginationContainer" class="flex items-center gap-2"></div>
                 </div>
             </div>
-            
+
         </section>
     </main>
 
-    <div id="noticeModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div id="noticeModal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl border-t-8 border-indigo-600 shadow-2xl max-w-lg w-full p-6 relative">
-            <button onclick="closeNotice()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-all text-2xl">
+            <button onclick="closeNotice()"
+                class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-all text-2xl">
                 <i class="fa-solid fa-xmark"></i>
             </button>
             <div class="flex items-start gap-4">
-                <div class="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl shrink-0">
+                <div
+                    class="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl shrink-0">
                     <i class="fa-solid fa-bullhorn"></i>
                 </div>
                 <div>
@@ -253,10 +314,12 @@
                     <p class="text-sm text-slate-500">공용 로그인은 외부에 유출되지 않도록 하십시오.</p>
                 </div>
             </div>
-            
-            <div class="mt-5 bg-slate-50 border border-slate-100 rounded-xl p-5 space-y-4 text-sm leading-relaxed text-slate-700 font-medium">
+
+            <div
+                class="mt-5 bg-slate-50 border border-slate-100 rounded-xl p-5 space-y-4 text-sm leading-relaxed text-slate-700 font-medium">
                 <p>💡 담당일의 근무자는 근무장소의 환경을 깨끗하게 유지하여 주십시오.</p>
-                <div class="bg-indigo-50/50 rounded-lg p-4 border border-indigo-100 space-y-2 font-mono text-sm text-indigo-950 font-bold">
+                <div
+                    class="bg-indigo-50/50 rounded-lg p-4 border border-indigo-100 space-y-2 font-mono text-sm text-indigo-950 font-bold">
                     <div><strong>고객 정보, 상담내용</strong> 을 필히 기록해주셔야</div>
                     <div>다른 근무자와 <strong>혼선</strong>이 없습니다.</div>
                 </div>
@@ -264,17 +327,20 @@
 
             <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
                 <label class="flex items-center gap-2.5 text-sm text-slate-600 font-bold cursor-pointer">
-                    <input type="checkbox" id="hideNoticeCheck" class="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <input type="checkbox" id="hideNoticeCheck"
+                        class="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                     <span>오늘 하루 동안 이 공지 띄우지 않기</span>
                 </label>
-                <button onclick="closeNotice()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm py-2.5 px-5 rounded-lg shadow-sm transition-all">
+                <button onclick="closeNotice()"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm py-2.5 px-5 rounded-lg shadow-sm transition-all">
                     확인 및 닫기
                 </button>
             </div>
         </div>
     </div>
 
-    <div id="editModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div id="editModal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden">
             <div class="bg-brand-700 px-6 py-5 flex items-center justify-between text-white">
                 <div class="flex items-center gap-3">
@@ -285,16 +351,18 @@
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            
+
             <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-extrabold text-slate-600 mb-1.5">방문 날짜</label>
-                        <input type="date" id="editDate" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                        <input type="date" id="editDate"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
                     </div>
                     <div>
                         <label class="block text-sm font-extrabold text-slate-600 mb-1.5">담당 설계사</label>
-                        <select id="editAgent" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold">
+                        <select id="editAgent"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold">
                             <option value="오계화">오계화</option>
                             <option value="김영순">김영순</option>
                             <option value="이승신">이승신</option>
@@ -313,11 +381,13 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-extrabold text-slate-600 mb-1.5">고객이름</label>
-                        <input type="text" id="editName" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold">
+                        <input type="text" id="editName"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold">
                     </div>
                     <div>
                         <label class="block text-sm font-extrabold text-slate-600 mb-1.5">성별</label>
-                        <select id="editGender" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold">
+                        <select id="editGender"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold">
                             <option value="여">여성</option>
                             <option value="남">남성</option>
                         </select>
@@ -327,49 +397,58 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-extrabold text-slate-600 mb-1.5">생년월일 (8자리)</label>
-                        <input type="text" id="editBirth" maxlength="10" oninput="autoFormatBirth(this)" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold">
+                        <input type="text" id="editBirth" maxlength="10" oninput="autoFormatBirth(this)"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold">
                     </div>
                     <div>
                         <label class="block text-sm font-extrabold text-slate-600 mb-1.5">연락처</label>
-                        <input type="text" id="editPhone" maxlength="13" oninput="autoFormatPhone(this)" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold">
+                        <input type="text" id="editPhone" maxlength="13" oninput="autoFormatPhone(this)"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-extrabold text-slate-600 mb-1.5">직업</label>
-                        <input type="text" id="editJob" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                        <input type="text" id="editJob"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
                     </div>
                     <div>
                         <label class="block text-sm font-extrabold text-slate-600 mb-1.5">상세 주소</label>
-                        <input type="text" id="editAddress" class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                        <input type="text" id="editAddress"
+                            class="w-full text-base p-3 bg-slate-50 border-2 border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-sm font-extrabold text-slate-600 mb-2">계약 진행현황 변경</label>
                     <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5" id="statusGridOptions">
-                        </div>
+                    </div>
                 </div>
 
                 <div>
                     <label class="block text-sm font-extrabold text-slate-600 mb-2">상담 및 피드백 내용수정</label>
-                    <textarea id="editModalMemo" rows="4" class="w-full text-base p-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none resize-none font-medium" placeholder="내용을 기록해주세요..."></textarea>
+                    <textarea id="editModalMemo" rows="4"
+                        class="w-full text-base p-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none resize-none font-medium"
+                        placeholder="내용을 기록해주세요..."></textarea>
                 </div>
             </div>
 
             <div class="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-                <button onclick="closeEditModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold py-3 px-5 rounded-xl transition-all">
+                <button onclick="closeEditModal()"
+                    class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold py-3 px-5 rounded-xl transition-all">
                     취소
                 </button>
-                <button onclick="saveChanges()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black py-3 px-6 rounded-xl shadow-md transition-all">
+                <button onclick="saveChanges()"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black py-3 px-6 rounded-xl shadow-md transition-all">
                     수정내용 저장
                 </button>
             </div>
         </div>
     </div>
 
-    <div id="configModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div id="configModal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
             <div class="bg-brand-700 px-6 py-4 flex items-center justify-between text-white">
                 <div class="flex items-center gap-2">
@@ -380,39 +459,50 @@
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            
+
             <div class="p-6 space-y-4">
                 <p class="text-xs text-slate-500 leading-relaxed">
-                    구글 파이어베이스 콘솔에서 발급한 SDK 구성 객체(Config) 값을 붙여넣으면 클라우드 DB 연동 모드로 전환됩니다. 미설정 시 브라우저 내의 LocalStorage로 안전하게 보관됩니다.
+                    구글 파이어베이스 콘솔에서 발급한 SDK 구성 객체(Config) 값을 붙여넣으면 클라우드 DB 연동 모드로 전환됩니다. 미설정 시 브라우저 내의 LocalStorage로 안전하게
+                    보관됩니다.
                 </p>
 
                 <div class="space-y-3">
                     <div>
                         <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">API KEY</label>
-                        <input type="text" id="fbApiKey" placeholder="AIzaSy..." class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        <input type="text" id="fbApiKey" placeholder="AIzaSy..."
+                            class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
-                        <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">AUTH DOMAIN</label>
-                        <input type="text" id="fbAuthDomain" placeholder="your-project.firebaseapp.com" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">AUTH
+                            DOMAIN</label>
+                        <input type="text" id="fbAuthDomain" placeholder="your-project.firebaseapp.com"
+                            class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">PROJECT ID</label>
-                            <input type="text" id="fbProjectId" placeholder="your-project" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">PROJECT
+                                ID</label>
+                            <input type="text" id="fbProjectId" placeholder="your-project"
+                                class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
                         </div>
                         <div>
-                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">STORAGE BUCKET</label>
-                            <input type="text" id="fbStorageBucket" placeholder="your-project.appspot.com" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">STORAGE
+                                BUCKET</label>
+                            <input type="text" id="fbStorageBucket" placeholder="your-project.appspot.com"
+                                class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">MESSAGING SENDER ID</label>
-                            <input type="text" id="fbMessagingSenderId" placeholder="1234567890" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                            <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">MESSAGING
+                                SENDER ID</label>
+                            <input type="text" id="fbMessagingSenderId" placeholder="1234567890"
+                                class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
                         </div>
                         <div>
                             <label class="block text-[10px] uppercase font-extrabold text-slate-400 mb-1">APP ID</label>
-                            <input type="text" id="fbAppId" placeholder="1:123456:web:abcd" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                            <input type="text" id="fbAppId" placeholder="1:123456:web:abcd"
+                                class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
                         </div>
                     </div>
                 </div>
@@ -423,10 +513,12 @@
                     설정값 완전삭제
                 </button>
                 <div class="flex gap-2">
-                    <button onclick="closeConfigModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-4 rounded-lg transition-all">
+                    <button onclick="closeConfigModal()"
+                        class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-4 rounded-lg transition-all">
                         취소
                     </button>
-                    <button onclick="saveFirebaseConfig()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-all">
+                    <button onclick="saveFirebaseConfig()"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-all">
                         연동저장 및 재실행
                     </button>
                 </div>
@@ -434,18 +526,22 @@
         </div>
     </div>
 
-    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+    <div id="confirmModal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 text-center">
-            <div class="w-14 h-14 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-2xl mx-auto mb-4">
+            <div
+                class="w-14 h-14 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-2xl mx-auto mb-4">
                 <i class="fa-solid fa-triangle-exclamation"></i>
             </div>
             <h3 class="text-base font-black text-slate-800 mb-2">데이터 파기 경고</h3>
             <p id="confirmModalText" class="text-sm text-slate-600 leading-relaxed mb-6 font-medium"></p>
             <div class="flex gap-3">
-                <button onclick="closeConfirmModal(false)" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold py-3 rounded-xl transition-all">
+                <button onclick="closeConfirmModal(false)"
+                    class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold py-3 rounded-xl transition-all">
                     취소
                 </button>
-                <button id="confirmModalActionBtn" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-black py-3 rounded-xl shadow-md transition-all">
+                <button id="confirmModalActionBtn"
+                    class="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-black py-3 rounded-xl shadow-md transition-all">
                     삭제 실행
                 </button>
             </div>
@@ -455,16 +551,17 @@
     <div id="toastContainer" class="fixed bottom-5 right-5 z-[70] flex flex-col gap-2.5 max-w-sm"></div>
 
     <!-- PWA Setup -->
-  <script>
-       if ('serviceWorker' in navigator) {
+    <script>
+        if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/youfirst-minam/sw.js')
-                .then(() => console.log('PWA Service Worker registered.'))
-                .catch(err => console.log('Service Worker registration failed:', err));
+                navigator.serviceWorker.register('/youfirst-minam/sw.js')
+                    .then(() => console.log('PWA Service Worker registered.'))
+                    .catch(err => console.log('Service Worker registration failed:', err));
             });
         }
-     </script>
+    </script>
 
     <script type="module" src="./js/script.js"></script>
 </body>
+
 </html>
