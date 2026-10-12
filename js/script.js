@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // 애플리케이션 상태 관리 변수
@@ -13,6 +13,36 @@ let activeEditId = null;
 let selectedEditStatus = '';
 let lastInsertedId = null;
 let confirmCallback = null;
+
+// 설계사 관리 상태
+const DEFAULT_AGENT_NAMES = [
+    "오계화", "김영순", "이승신", "홍성미",
+    "제세영", "김미소", "장우식", "박승환",
+    "장유미", "김보영", "정미라", "유근순",
+    "정혜임", "최윤수", "구지회", "강민슬"
+];
+
+function loadSavedAgentNames() {
+    try {
+        const saved = JSON.parse(
+            localStorage.getItem('local_agent_names_v1')
+        );
+
+        if (Array.isArray(saved)) {
+            return [...new Set(
+                saved.map(name => String(name).trim()).filter(Boolean)
+            )];
+        }
+    } catch (e) {
+        console.warn("로컬 설계사 목록을 읽지 못했습니다.", e);
+    }
+
+    return [...DEFAULT_AGENT_NAMES];
+}
+
+let agentNames = loadSavedAgentNames();
+let unsubscribeAgents = null;
+let editingAgentOriginal = null;
 
 const statuses = ['1차상담', '개인상담 1차', '2차상담', '개인상담 2차', '계약자', '단순문의'];
 
@@ -125,6 +155,7 @@ async function initDatabase() {
 
         console.log("Firebase 오프라인 지속성 모드로 로그인 및 DB 초기화 완료!");
         isFirebaseMode = true;
+        startAgentSync();
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'ga-visitor-db-pwa';
         const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'visitors');
@@ -321,31 +352,56 @@ function renderPaginationControls(totalPages) {
     container.appendChild(nextBtn);
 }
 
-// 담당 설계사 목록 드롭다운 동적 업데이트
+// 설계사 목록을 고객 등록·수정·검색 필터에 반영
 window.updateAgentFilterDropdown = function () {
-    const dropdown = document.getElementById('filterAgent');
-    if (!dropdown) return;
-    const savedSelection = dropdown.value;
-    dropdown.innerHTML = '<option value="ALL">전체 담당자</option>';
+    const regSelect = document.getElementById('regAgent');
+    const editSelect = document.getElementById('editAgent');
+    const filterSelect = document.getElementById('filterAgent');
 
-    const assignedAgents = [
-    "오계화", "김영순", "이승신", "홍성미", "제세영",
-    "김미소", "장우식", "박승환", "장유미", "김보영",
-    "정미라", "유근순", "정혜임", "최윤수", "구지회", "강민슬"
-];
-    assignedAgents.forEach(agent => {
-        const opt = document.createElement('option');
-        opt.value = agent;
-        opt.innerText = agent;
-        dropdown.appendChild(opt);
-    });
+    const historicalAgents = customerData
+        .map(customer => (customer.agent || '').trim())
+        .filter(Boolean);
 
-    if (assignedAgents.includes(savedSelection)) {
-        dropdown.value = savedSelection;
-    } else {
-        dropdown.value = 'ALL';
+    // 삭제되거나 이름이 변경된 설계사도 기존 고객 기록에서 보존
+    const allKnownAgents = [...new Set([
+        ...agentNames,
+        ...historicalAgents
+    ])];
+
+    function fillSelect(select, names, firstLabel, firstValue) {
+        if (!select) return;
+
+        const previousValue = select.value;
+        select.innerHTML = '';
+
+        const firstOption = document.createElement('option');
+        firstOption.value = firstValue;
+        firstOption.textContent = firstLabel;
+        select.appendChild(firstOption);
+
+        names.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+
+        if ([...select.options].some(o => o.value === previousValue)) {
+            select.value = previousValue;
+        } else {
+            select.value = firstValue;
+        }
     }
-}
+
+    // 신규 등록에는 현재 등록된 설계사만 표시
+    fillSelect(regSelect, agentNames, '선택하세요', '');
+
+    // 기존 고객 기록에 있는 과거 설계사 이름도 수정 화면에서 보존
+    fillSelect(editSelect, allKnownAgents, '선택하세요', '');
+
+    // 과거 담당자로 등록된 고객도 필터링할 수 있게 유지
+    fillSelect(filterSelect, allKnownAgents, '전체 담당자', 'ALL');
+};
 
 // 하이브리드 다중 정렬 구현 로직
 window.applySorting = function (primaryField, direction) {
@@ -776,4 +832,270 @@ window.restoreJsonData = function (event) {
         }
     };
     reader.readAsText(file);
+}
+
+// Firestore 설계사 목록 문서 경로
+function getAgentSettingsRef() {
+    const appId = typeof __app_id !== 'undefined'
+        ? __app_id
+        : 'ga-visitor-db-pwa';
+
+    return doc(
+        db,
+        'artifacts', appId,
+        'public', 'data',
+        'settings', 'agents'
+    );
+}
+
+// Firebase 설계사 목록 실시간 동기화
+function startAgentSync() {
+    if (!db || !isFirebaseMode) return;
+
+    if (unsubscribeAgents) {
+        unsubscribeAgents();
+    }
+
+    const settingsRef = getAgentSettingsRef();
+
+    unsubscribeAgents = onSnapshot(
+        settingsRef,
+        async snapshot => {
+            if (!snapshot.exists()) {
+                // 최초 실행 시 기존 설계사 목록으로 초기화
+                try {
+                    await setDoc(settingsRef, {
+                        names: [...DEFAULT_AGENT_NAMES],
+                        updatedAt: new Date().toISOString()
+                    });
+                } catch (error) {
+                    console.error("설계사 목록 초기화 실패:", error);
+                    showToast(
+                        "설계사 목록 초기화에 실패했습니다.",
+                        "error"
+                    );
+                }
+                return;
+            }
+
+            const data = snapshot.data();
+
+            if (Array.isArray(data.names)) {
+                agentNames = [...new Set(
+                    data.names
+                        .map(name => String(name).trim())
+                        .filter(Boolean)
+                )];
+
+                updateAgentFilterDropdown();
+                renderAgentList();
+
+                if (typeof renderTable === 'function') {
+                    renderTable();
+                }
+            }
+        },
+        error => {
+            console.error("설계사 목록 동기화 실패:", error);
+            showToast("설계사 목록을 불러오지 못했습니다.", "error");
+        }
+    );
+}
+
+// 설계사 목록 저장
+async function persistAgentNames(names) {
+    if (isFirebaseMode && db) {
+        await setDoc(getAgentSettingsRef(), {
+            names: [...names],
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+    } else {
+        localStorage.setItem(
+            'local_agent_names_v1',
+            JSON.stringify(names)
+        );
+    }
+}
+
+// 설계사 관리 모달 열기
+window.openAgentModal = function () {
+    const modal = document.getElementById('agentModal');
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    renderAgentList();
+
+    document.getElementById('agentNameInput').focus();
+};
+
+// 설계사 관리 모달 닫기
+window.closeAgentModal = function () {
+    const modal = document.getElementById('agentModal');
+
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+
+    resetAgentForm();
+};
+
+// 입력 폼 초기화
+function resetAgentForm() {
+    editingAgentOriginal = null;
+
+    const input = document.getElementById('agentNameInput');
+    const button = document.getElementById('agentSaveButton');
+    const notice = document.getElementById('agentEditNotice');
+
+    if (input) input.value = '';
+    if (button) button.textContent = '등록';
+    if (notice) notice.classList.add('hidden');
+}
+
+// 설계사 등록 및 이름 수정
+window.saveAgentFromInput = async function () {
+    const input = document.getElementById('agentNameInput');
+    const name = input.value.trim();
+
+    if (!name) {
+        showToast("설계사 이름을 입력해주세요.", "error");
+        input.focus();
+        return;
+    }
+
+    const duplicate = agentNames.some(existing =>
+        existing === name && existing !== editingAgentOriginal
+    );
+
+    if (duplicate) {
+        showToast("이미 등록된 설계사 이름입니다.", "error");
+        input.focus();
+        return;
+    }
+
+    let nextNames;
+
+    if (editingAgentOriginal !== null) {
+        nextNames = agentNames.map(existing =>
+            existing === editingAgentOriginal ? name : existing
+        );
+    } else {
+        nextNames = [...agentNames, name];
+    }
+
+    try {
+        await persistAgentNames(nextNames);
+
+        agentNames = nextNames;
+
+        updateAgentFilterDropdown();
+        renderAgentList();
+        renderTable();
+
+        showToast(
+            editingAgentOriginal !== null
+                ? "설계사 이름이 수정되었습니다."
+                : "설계사가 등록되었습니다.",
+            "success"
+        );
+
+        resetAgentForm();
+    } catch (error) {
+        console.error("설계사 저장 실패:", error);
+        showToast(
+            "저장에 실패했습니다. 로그인 및 Firebase 연결을 확인해주세요.",
+            "error"
+        );
+    }
+};
+
+// 설계사 이름 수정 폼에 불러오기
+window.beginEditAgent = function (name) {
+    editingAgentOriginal = name;
+
+    document.getElementById('agentNameInput').value = name;
+    document.getElementById('agentSaveButton').textContent = '수정';
+    document.getElementById('agentEditNotice').classList.remove('hidden');
+
+    document.getElementById('agentNameInput').focus();
+};
+
+// 설계사 삭제
+window.deleteAgent = async function (name) {
+    if (!confirm(
+        `"${name}" 설계사를 목록에서 삭제할까요?\n\n기존 고객 기록은 삭제되지 않습니다.`
+    )) {
+        return;
+    }
+
+    const nextNames = agentNames.filter(existing => existing !== name);
+
+    try {
+        await persistAgentNames(nextNames);
+
+        agentNames = nextNames;
+
+        if (editingAgentOriginal === name) {
+            resetAgentForm();
+        }
+
+        updateAgentFilterDropdown();
+        renderAgentList();
+        renderTable();
+
+        showToast("설계사가 목록에서 삭제되었습니다.", "success");
+    } catch (error) {
+        console.error("설계사 삭제 실패:", error);
+        showToast("설계사 삭제에 실패했습니다.", "error");
+    }
+};
+
+// 설계사 목록 화면 렌더링
+function renderAgentList() {
+    const container = document.getElementById('agentList');
+    const count = document.getElementById('agentCount');
+
+    if (!container || !count) return;
+
+    container.replaceChildren();
+    count.textContent = `${agentNames.length}명`;
+
+    if (agentNames.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'text-sm text-slate-400 text-center py-8';
+        empty.textContent = '등록된 설계사가 없습니다.';
+        container.appendChild(empty);
+        return;
+    }
+
+    agentNames.forEach(name => {
+        const row = document.createElement('div');
+        row.className =
+            'flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50';
+
+        const label = document.createElement('span');
+        label.className = 'font-bold text-slate-700 break-all';
+        label.textContent = name;
+
+        const actions = document.createElement('div');
+        actions.className = 'flex items-center gap-2 shrink-0';
+
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.textContent = '수정';
+        editButton.className =
+            'text-sm font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 px-3 py-2 rounded-lg';
+        editButton.onclick = () => beginEditAgent(name);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.textContent = '삭제';
+        deleteButton.className =
+            'text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg';
+        deleteButton.onclick = () => deleteAgent(name);
+
+        actions.append(editButton, deleteButton);
+        row.append(label, actions);
+        container.appendChild(row);
+    });
 }
