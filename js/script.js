@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, GoogleAuthProvider, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc,  getDocFromServer, initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // 애플리케이션 상태 관리 변수
@@ -43,6 +43,7 @@ function loadSavedAgentNames() {
 let agentNames = loadSavedAgentNames();
 let unsubscribeAgents = null;
 let editingAgentOriginal = null;
+let agentSyncReady = false;
 
 const statuses = ['1차상담', '개인상담 1차', '2차상담', '개인상담 2차', '계약자', '단순문의'];
 
@@ -849,57 +850,97 @@ function getAgentSettingsRef() {
 }
 
 // Firebase 설계사 목록 실시간 동기화
-function startAgentSync() {
+async function startAgentSync() {
     if (!db || !isFirebaseMode) return;
+
+    agentSyncReady = false;
 
     if (unsubscribeAgents) {
         unsubscribeAgents();
+        unsubscribeAgents = null;
     }
 
     const settingsRef = getAgentSettingsRef();
 
-    unsubscribeAgents = onSnapshot(
-        settingsRef,
-        async snapshot => {
-            if (!snapshot.exists()) {
-                // 최초 실행 시 기존 설계사 목록으로 초기화
-                try {
-                    await setDoc(settingsRef, {
-                        names: [...DEFAULT_AGENT_NAMES],
-                        updatedAt: new Date().toISOString()
-                    });
-                } catch (error) {
-                    console.error("설계사 목록 초기화 실패:", error);
-                    showToast(
-                        "설계사 목록 초기화에 실패했습니다.",
-                        "error"
-                    );
-                }
-                return;
-            }
+    try {
+        // 서버에 저장된 최신 목록을 직접 확인
+        const snapshot = await getDocFromServer(settingsRef);
 
+        if (!snapshot.exists()) {
+            // 문서가 실제로 없을 때만 기본 목록으로 최초 생성
+            await setDoc(settingsRef, {
+                names: [...DEFAULT_AGENT_NAMES],
+                updatedAt: new Date().toISOString()
+            });
+
+            agentNames = [...DEFAULT_AGENT_NAMES];
+        } else {
             const data = snapshot.data();
 
-            if (Array.isArray(data.names)) {
-                agentNames = [...new Set(
+            if (!Array.isArray(data.names)) {
+                throw new Error("설계사 목록 데이터 형식이 올바르지 않습니다.");
+            }
+
+            agentNames = [
+                ...new Set(
                     data.names
                         .map(name => String(name).trim())
                         .filter(Boolean)
-                )];
+                )
+            ];
+        }
+
+        updateAgentFilterDropdown();
+        renderAgentList();
+
+        if (typeof renderTable === "function") {
+            renderTable();
+        }
+
+        // 서버 목록 로딩이 끝난 뒤 실시간 동기화 시작
+        unsubscribeAgents = onSnapshot(
+            settingsRef,
+            snapshot => {
+                if (!snapshot.exists()) return;
+
+                const data = snapshot.data();
+
+                if (!Array.isArray(data.names)) {
+                    console.error("설계사 목록 데이터 형식 오류");
+                    return;
+                }
+
+                agentNames = [
+                    ...new Set(
+                        data.names
+                            .map(name => String(name).trim())
+                            .filter(Boolean)
+                    )
+                ];
 
                 updateAgentFilterDropdown();
                 renderAgentList();
 
-                if (typeof renderTable === 'function') {
+                if (typeof renderTable === "function") {
                     renderTable();
                 }
+            },
+            error => {
+                console.error("설계사 목록 동기화 오류:", error);
             }
-        },
-        error => {
-            console.error("설계사 목록 동기화 실패:", error);
-            showToast("설계사 목록을 불러오지 못했습니다.", "error");
-        }
-    );
+        );
+
+        agentSyncReady = true;
+
+    } catch (error) {
+        agentSyncReady = false;
+        console.error("설계사 목록 로딩 실패:", error);
+
+        showToast(
+            "설계사 목록을 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.",
+            "error"
+        );
+    }
 }
 
 // 설계사 목록 저장
@@ -954,6 +995,14 @@ function resetAgentForm() {
 
 // 설계사 등록 및 이름 수정
 window.saveAgentFromInput = async function () {
+
+    if (isFirebaseMode && !agentSyncReady) {
+    showToast(
+        "설계사 목록을 불러오는 중입니다. 잠시 후 다시 시도해주세요.",
+        "error"
+    );
+    return;
+}
     const input = document.getElementById('agentNameInput');
     const name = input.value.trim();
 
@@ -1022,6 +1071,14 @@ window.beginEditAgent = function (name) {
 
 // 설계사 삭제
 window.deleteAgent = async function (name) {
+     if (isFirebaseMode && !agentSyncReady) {
+        showToast(
+            "설계사 목록을 불러오는 중입니다. 잠시 후 다시 시도해주세요.",
+            "error"
+        );
+        return;
+    }
+    
     if (!confirm(
         `"${name}" 설계사를 목록에서 삭제할까요?\n\n기존 고객 기록은 삭제되지 않습니다.`
     )) {
